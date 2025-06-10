@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Créer un Template - DocBuilder{% endblock %}
+
+{% block extra_css %}
+<style>
+    .main-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        margin: 20px;
+        padding: 30px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+
+    .textarea-editor {
+        min-height: 400px;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        resize: vertical;
+        background: #fafafa;
+    }
+
+    .textarea-editor:focus {
+        background: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-container animate-in">
+    <!-- Indicateur d'étapes -->
+    <div class="step-indicator">
+        <div class="step completed">
+            <div class="step-circle">
+                <i class="fas fa-info"></i>
+            </div>
+            <small>Informations</small>
+            <div class="step-line"></div>
+        </div>
+        <div class="step active">
+            <div class="step-circle">
+                <i class="fas fa-edit"></i>
+            </div>
+            <small>Rédaction</small>
+            <div class="step-line"></div>
+        </div>
+        <div class="step">
+            <div class="step-circle">
+                <i class="fas fa-cogs"></i>
+            </div>
+            <small>Configuration</small>
+            <div class="step-line"></div>
+        </div>
+        <div class="step">
+            <div class="step-circle">
+                <i class="fas fa-check"></i>
+            </div>
+            <small>Finalisation</small>
+        </div>
+    </div>
+
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{% url 'templates_app:template_list' %}" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left"></i> Retour
+            </a>
+            <h1 class="d-inline mb-0"><i class="fas fa-magic"></i> Créer un nouveau template</h1>
+            <p class="text-muted mt-2">Étape 2/4 - Rédigez le contenu et insérez vos champs dynamiques</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-info me-2" onclick="showPreview()">
+                <i class="fas fa-eye"></i> Aperçu en direct
+            </button>
+            <button class="btn btn-success" onclick="saveTemplate()">
+                <i class="fas fa-arrow-right"></i> Étape suivante
+            </button>
+        </div>
+    </div>
+
+    <form method="post" id="templateForm">
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- Colonne principale : Éditeur -->
+            <div class="col-lg-8">
+                <!-- Informations du template -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> Informations du template</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="id_title" class="form-label fw-bold">Titre du template <span class="text-danger">*</span></label>
+                                    {{ form.title }}
+                                    {% if form.title.errors %}
+                                        <div class="text-danger small">{{ form.title.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_category" class="form-label fw-bold">Catégorie</label>
+                                    {{ form.category }}
+                                    {% if form.category.errors %}
+                                        <div class="text-danger small">{{ form.category.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="id_description" class="form-label fw-bold">Description</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="text-danger small">{{ form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-check">
+                            {{ form.is_public }}
+                            <label class="form-check-label" for="id_is_public">
+                                <i class="fas fa-globe"></i> Rendre ce template public (visible par tous les utilisateurs)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Éditeur de contenu -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-edit"></i> Éditeur de contenu</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Section d'aide -->
+                        <div class="help-section">
+                            <h6><i class="fas fa-lightbulb text-info"></i> Comment utiliser l'éditeur :</h6>
+                            <ul class="mb-0">
+                                <li><strong>Champs dynamiques :</strong> Tapez <span class="syntax-highlight">{{nom_du_champ}}</span> pour insérer un champ variable</li>
+                                <li><strong>Formatage :</strong> Utilisez la barre d'outils pour formater votre texte</li>
+                                <li><strong>Aperçu :</strong> Les champs détectés apparaissent automatiquement dans le panneau de droite</li>
+                                <li><strong>Exemples :</strong> <span class="syntax-highlight">{{nom_entreprise}}</span>, <span class="syntax-highlight">{{date_debut}}</span>, <span class="syntax-highlight">{{salaire}}</span></li>
+                            </ul>
+                        </div>
+
+                        <!-- Barre d'outils de formatage -->
+                        <div class="formatting-toolbar">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <strong>Formatage :</strong>
+                                    <button type="button" class="format-btn" onclick="formatText('bold')" title="Gras">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" class="format-btn" onclick="formatText('italic')" title="Italique">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" class="format-btn" onclick="formatText('underline')" title="Souligné">
+                                        <i class="fas fa-underline"></i>
+                                    </button>
+                                    <button type="button" class="format-btn" onclick="formatText('center')" title="Centrer">
+                                        <i class="fas fa-align-center"></i>
+                                    </button>
+                                    <button type="button" class="format-btn" onclick="formatText('justify')" title="Justifier">
+                                        <i class="fas fa-align-justify"></i>
+                                    </button>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="insertQuickField()">
+                                        <i class="fas fa-plus"></i> Insérer un champ
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Zone de saisie principale -->
+                        <div class="position-relative">
+                            <label for="id_content" class="form-label fw-bold">Contenu du template</label>
+                            {{ form.content }}
+                            {% if form.content.errors %}
+                                <div class="text-danger small">{{ form.content.errors }}</div>
+                            {% endif %}
+
+                            <div class="live-counter">
+                                <span id="charCount">0</span> caractères • <span id="fieldCount">0</span> champs
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i> Les champs entre <span class="syntax-highlight">{{ }}</span> seront transformés en formulaires
+                            </small>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="clearContent()">
+                                    <i class="fas fa-trash"></i> Vider
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="autoFormat()">
+                                    <i class="fas fa-magic"></i> Auto-formatage
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne latérale : Outils et prévisualisation -->
+            <div class="col-lg-4">
+                <!-- Champs détectés -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-tags"></i> Champs détectés <span class="badge bg-primary ms-2" id="fieldCountBadge">0</span></h5>
+                    </div>
+                    <div class="card-body" id="detectedFields">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-search fa-2x mb-3"></i>
+                            <p>Aucun champ détecté</p>
+                            <small>Tapez {{nom_champ}} dans le texte</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Outils rapides -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-tools"></i> Insertion rapide</h5>
+                    </div>
+                    <div class="card-body">
+                        <button type="button" class="btn btn-outline-primary quick-insert-btn" onclick="insertTemplate('header')">
+                            <i class="fas fa-heading"></i> En-tête de document
+                        </button>
+                        <button type="button" class="btn btn-outline-primary quick-insert-btn" onclick="insertTemplate('article')">
+                            <i class="fas fa-list-ol"></i> Article numéroté
+                        </button>
+                        <button type="button" class="btn btn-outline-primary quick-insert-btn" onclick="insertTemplate('signature')">
+                            <i class="fas fa-signature"></i> Zone de signatures
+                        </button>
+                        <button type="button" class="btn btn-outline-primary quick-insert-btn" onclick="insertTemplate('date')">
+                            <i class="fas fa-calendar"></i> Date et lieu
+                        </button>
+                        <button type="button" class="btn btn-outline-primary quick-insert-btn" onclick="insertTemplate('table')">
+                            <i class="fas fa-table"></i> Tableau de données
+                        </button>
+                        <button type="button" class="btn btn-outline-primary quick-insert-btn" onclick="insertTemplate('conditions')">
+                            <i class="fas fa-list-ul"></i> Conditions générales
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Exemples de champs -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-lightbulb"></i> Champs courants</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="insertField('{{nom_client}}')">
+                                    {{nom_client}}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="insertField('{{date_aujourd_hui}}')">
+                                    {{date_aujourd_hui}}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="insertField('{{montant_total}}')">
+                                    {{montant_total}}
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="insertField('{{adresse_complete}}')">
+                                    {{adresse_complete}}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="insertField('{{numero_reference}}')">
+                                    {{numero_reference}}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="insertField('{{email}}')">
+                                    {{email}}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Modal d'aperçu -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-eye"></i> Aperçu du template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-area" id="livePreview">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-file-alt fa-3x mb-3"></i>
+                        <p>L'aperçu apparaîtra ici...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="continueToConfiguration()">
+                    <i class="fas fa-arrow-right"></i> Configurer les champs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/template_editor.js' %}"></script>
+{% endblock %}

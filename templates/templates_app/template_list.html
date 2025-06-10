@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Templates - DocBuilder{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="fw-bold mb-2">
+                <i class="fas fa-layer-group text-primary me-2"></i>Mes Templates
+            </h1>
+            <p class="text-muted">Créez et gérez vos modèles de documents dynamiques</p>
+        </div>
+        <a href="{% url 'templates_app:template_create' %}" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus me-2"></i>Nouveau Template
+        </a>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Rechercher</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="search" name="search"
+                               value="{{ search }}" placeholder="Titre ou description...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label for="category" class="form-label">Catégorie</label>
+                    <select class="form-select" id="category" name="category">
+                        <option value="">Toutes les catégories</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if cat.id|stringformat:"s" == selected_category %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="visibility" class="form-label">Visibilité</label>
+                    <select class="form-select" id="visibility" name="visibility">
+                        <option value="">Tous les templates</option>
+                        <option value="my" {% if selected_visibility == 'my' %}selected{% endif %}>Mes templates</option>
+                        <option value="public" {% if selected_visibility == 'public' %}selected{% endif %}>Templates publics</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-filter me-1"></i>Filtrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center bg-primary text-white">
+                <div class="card-body">
+                    <i class="fas fa-layer-group fa-2x mb-2"></i>
+                    <h3 class="fw-bold">{{ templates.paginator.count }}</h3>
+                    <p class="mb-0">Templates total</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                    <i class="fas fa-users fa-2x mb-2"></i>
+                    <h3 class="fw-bold">12</h3>
+                    <p class="mb-0">Templates publics</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-info text-white">
+                <div class="card-body">
+                    <i class="fas fa-file fa-2x mb-2"></i>
+                    <h3 class="fw-bold">45</h3>
+                    <p class="mb-0">Documents créés</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-warning text-white">
+                <div class="card-body">
+                    <i class="fas fa-clock fa-2x mb-2"></i>
+                    <h3 class="fw-bold">8</h3>
+                    <p class="mb-0">En cours</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grille des templates -->
+    {% if templates %}
+        <div class="row">
+            {% for template in templates %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="card template-card h-100">
+                        <div class="card-body">
+                            <!-- En-tête de la carte -->
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h5 class="card-title fw-bold mb-0">{{ template.title }}</h5>
+                                {% if template.category %}
+                                    <span class="badge category-badge" style="background-color: {{ template.category.color }};">
+                                        {{ template.category.name }}
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <p class="card-text text-muted mb-3">
+                                {{ template.description|default:"Aucune description"|truncatechars:100 }}
+                            </p>
+
+                            <!-- Métadonnées -->
+                            <div class="text-muted small mb-3">
+                                <div class="mb-1">
+                                    <i class="fas fa-user me-1"></i>
+                                    {% if template.created_by == request.user %}
+                                        Par vous
+                                    {% else %}
+                                        Par {{ template.created_by.username }}
+                                    {% endif %}
+                                </div>
+                                <div class="mb-1">
+                                    <i class="fas fa-{% if template.is_public %}globe{% else %}lock{% endif %} me-1"></i>
+                                    {% if template.is_public %}Public{% else %}Privé{% endif %}
+                                </div>
+                                <div>
+                                    <i class="fas fa-calendar me-1"></i>
+                                    {{ template.created_at|date:"d/m/Y" }}
+                                </div>
+                            </div>
+
+                            <!-- Champs détectés -->
+                            <div class="mb-3">
+                                <small class="text-muted">Champs: </small>
+                                {% for field in template.fields.all|slice:":3" %}
+                                    <span class="badge bg-light text-dark me-1">{{ field.field_name }}</span>
+                                {% empty %}
+                                    <span class="text-muted">Aucun champ</span>
+                                {% endfor %}
+                                {% if template.fields.count > 3 %}
+                                    <span class="badge bg-secondary">+{{ template.fields.count|add:"-3" }} autres</span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Statistiques rapides -->
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <small class="text-muted d-block">Champs</small>
+                                    <strong class="text-primary">{{ template.fields.count }}</strong>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted d-block">Documents</small>
+                                    <strong class="text-success">{{ template.documents.count }}</strong>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted d-block">Utilisations</small>
+                                    <strong class="text-info">{{ template.documents.count }}</strong>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="btn-group w-100">
+                                <a href="{% url 'templates_app:template_detail' template.id %}"
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye"></i> Voir
+                                </a>
+                                <a href="{% url 'templates_app:document_create' template.id %}"
+                                   class="btn btn-success btn-sm">
+                                    <i class="fas fa-plus"></i> Utiliser
+                                </a>
+                                {% if template.created_by == request.user %}
+                                    <a href="{% url 'templates_app:template_edit' template.id %}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" disabled>
+                                        <i class="fas fa-lock"></i>
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if templates.has_other_pages %}
+            <nav aria-label="Navigation des templates">
+                <ul class="pagination justify-content-center">
+                    {% if templates.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ templates.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    {% for page_num in templates.paginator.page_range %}
+                        {% if page_num == templates.number %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% elif page_num > templates.number|add:"-3" and page_num < templates.number|add:"3" %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_num }}{% if search %}&search={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if templates.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ templates.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}">
+                                <i class="fas fa-angle-right"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ templates.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+
+    {% else %}
+        <!-- État vide -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-layer-group fa-5x text-muted"></i>
+            </div>
+            <h3 class="text-muted mb-3">Aucun template trouvé</h3>
+            {% if search or selected_category %}
+                <p class="text-muted mb-4">Aucun template ne correspond à vos critères de recherche.</p>
+                <a href="{% url 'templates_app:template_list' %}" class="btn btn-outline-primary me-2">
+                    <i class="fas fa-times me-1"></i>Effacer les filtres
+                </a>
+            {% else %}
+                <p class="text-muted mb-4">Commencez par créer votre premier template pour générer des documents dynamiques.</p>
+            {% endif %}
+            <a href="{% url 'templates_app:template_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Créer mon premier template
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-submit du formulaire de recherche avec un délai
+    let searchTimeout;
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                this.form.submit();
+            }, 500);
+        });
+    }
+
+    // Animation des cartes au scroll
+    function animateOnScroll() {
+        const cards = document.querySelectorAll('.template-card');
+        cards.forEach(card => {
+            const rect = card.getBoundingClientRect();
+            if (rect.top < window.innerHeight && rect.bottom > 0) {
+                card.classList.add('animate-in');
+            }
+        });
+    }
+
+    window.addEventListener('scroll', animateOnScroll);
+    document.addEventListener('DOMContentLoaded', animateOnScroll);
+</script>
+{% endblock %}

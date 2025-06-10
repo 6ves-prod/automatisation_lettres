@@ -1,0 +1,553 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ template.title }} - DocBuilder{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div class="flex-grow-1">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'templates_app:template_list' %}">Templates</a>
+                    </li>
+                    <li class="breadcrumb-item active">{{ template.title }}</li>
+                </ol>
+            </nav>
+
+            <div class="d-flex align-items-center mb-2">
+                <h1 class="fw-bold mb-0 me-3">{{ template.title }}</h1>
+                {% if template.category %}
+                    <span class="badge category-badge fs-6" style="background-color: {{ template.category.color }};">
+                        {{ template.category.name }}
+                    </span>
+                {% endif %}
+                {% if template.is_public %}
+                    <span class="badge bg-success ms-2">
+                        <i class="fas fa-globe"></i> Public
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary ms-2">
+                        <i class="fas fa-lock"></i> Privé
+                    </span>
+                {% endif %}
+            </div>
+
+            {% if template.description %}
+                <p class="text-muted fs-5 mb-3">{{ template.description }}</p>
+            {% endif %}
+
+            <!-- Métadonnées -->
+            <div class="row g-3 mb-4">
+                <div class="col-auto">
+                    <small class="text-muted d-block">Créé par</small>
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-user me-1"></i>
+                        {% if template.created_by == request.user %}
+                            <strong>Vous</strong>
+                        {% else %}
+                            <strong>{{ template.created_by.get_full_name|default:template.created_by.username }}</strong>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <small class="text-muted d-block">Date de création</small>
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-calendar me-1"></i>
+                        <span>{{ template.created_at|date:"d/m/Y à H:i" }}</span>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <small class="text-muted d-block">Dernière modification</small>
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-clock me-1"></i>
+                        <span>{{ template.updated_at|date:"d/m/Y à H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="text-end">
+            <div class="btn-group mb-2">
+                <a href="{% url 'templates_app:document_create' template.id %}" class="btn btn-success btn-lg">
+                    <i class="fas fa-plus me-2"></i>Créer un document
+                </a>
+                <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
+                    <span class="visually-hidden">Actions</span>
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <a class="dropdown-item" href="{% url 'templates_app:template_preview' template.id %}">
+                            <i class="fas fa-eye me-2"></i>Aperçu
+                        </a>
+                    </li>
+                    <li>
+                        <button class="dropdown-item" onclick="copyTemplateLink()">
+                            <i class="fas fa-link me-2"></i>Copier le lien
+                        </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button class="dropdown-item" onclick="duplicateTemplate()">
+                            <i class="fas fa-copy me-2"></i>Dupliquer
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="d-flex gap-2">
+                {% if template.created_by == request.user %}
+                    <a href="{% url 'templates_app:template_edit' template.id %}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit me-1"></i>Modifier
+                    </a>
+                    <a href="{% url 'templates_app:template_edit_fields' template.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-cogs me-1"></i>Configurer
+                    </a>
+                {% endif %}
+
+                <div class="btn-group">
+                    <button class="btn btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-download me-1"></i>Exporter
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="exportTemplate('pdf')">
+                            <i class="fas fa-file-pdf me-2"></i>PDF
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportTemplate('html')">
+                            <i class="fas fa-file-code me-2"></i>HTML
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportTemplate('json')">
+                            <i class="fas fa-file-alt me-2"></i>JSON
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Colonne principale -->
+        <div class="col-lg-8">
+            <!-- Aperçu du template -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-file-alt"></i> Aperçu du template
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="togglePreviewMode('raw')" id="rawMode">
+                            <i class="fas fa-code"></i> Code
+                        </button>
+                        <button class="btn btn-outline-secondary active" onclick="togglePreviewMode('rendered')" id="renderedMode">
+                            <i class="fas fa-eye"></i> Rendu
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Vue du code brut -->
+                    <div id="rawContent" style="display: none;">
+                        <pre class="bg-light p-3 rounded"><code>{{ template.content }}</code></pre>
+                    </div>
+
+                    <!-- Vue rendue -->
+                    <div id="renderedContent" class="rendered-doc">
+                        {% autoescape off %}
+                            {% for line in template.content|linebreaksbr %}
+                                {{ line }}
+                            {% endfor %}
+                        {% endautoescape %}
+                    </div>
+
+                    <div class="mt-3 text-end">
+                        <button class="btn btn-sm btn-outline-primary" onclick="showFullscreen()">
+                            <i class="fas fa-expand me-1"></i>Plein écran
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents récents créés avec ce template -->
+            {% if recent_documents %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file me-2"></i>Vos documents récents
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group list-group-flush">
+                            {% for document in recent_documents %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            <a href="{% url 'templates_app:document_detail' document.id %}" class="text-decoration-none">
+                                                {{ document.title }}
+                                            </a>
+                                        </h6>
+                                        <small class="text-muted">
+                                            Modifié le {{ document.updated_at|date:"d/m/Y à H:i" }}
+                                            {% if document.is_completed %}
+                                                • <span class="badge bg-success">Terminé</span>
+                                            {% else %}
+                                                • <span class="badge bg-warning">Brouillon</span>
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'templates_app:document_detail' document.id %}" class="btn btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'templates_app:document_edit' document.id %}" class="btn btn-outline-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <a href="{% url 'templates_app:document_list' %}?template={{ template.id }}" class="btn btn-outline-primary">
+                                <i class="fas fa-list me-1"></i>Voir tous les documents
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Statistiques -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar"></i> Statistiques
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h3 class="text-primary mb-1">{{ fields.count }}</h3>
+                                <small class="text-muted">Champs</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-success mb-1">{{ template.documents.count }}</h3>
+                            <small class="text-muted">Documents créés</small>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <small class="text-muted">Documents terminés</small>
+                        <small class="fw-bold">{{ template.documents.filter:is_completed=True|length }}</small>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <small class="text-muted">Brouillons</small>
+                        <small class="fw-bold">{{ template.documents.filter:is_completed=False|length }}</small>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">Caractères</small>
+                        <small class="fw-bold">{{ template.content|length }}</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Champs du template -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tags"></i> Champs du template
+                    </h5>
+                    <span class="badge bg-primary">{{ fields.count }}</span>
+                </div>
+                <div class="card-body">
+                    {% if fields %}
+                        {% for field in fields %}
+                            <div class="field-preview mb-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <strong class="d-block">{{ field.field_label }}</strong>
+                                        <code class="small text-muted">{{{{ field.field_name }}}}</code>
+                                        {% if field.placeholder_text %}
+                                            <br><small class="text-muted">{{ field.placeholder_text }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-{{ field.field_type|default:'secondary' }}">
+                                            {{ field.get_field_type_display }}
+                                        </span>
+                                        {% if field.is_required %}
+                                            <span class="badge bg-danger">Requis</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+
+                        {% if template.created_by == request.user %}
+                            <div class="text-center mt-3">
+                                <a href="{% url 'templates_app:template_edit_fields' template.id %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-cogs me-1"></i>Configurer les champs
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <p class="mb-0">Aucun champ dynamique détecté</p>
+                            <small>Ajoutez des champs avec la syntaxe {{nom_champ}}</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions rapides -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Actions rapides
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'templates_app:document_create' template.id %}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Nouveau document
+                        </a>
+
+                        <button class="btn btn-outline-secondary" onclick="copyTemplateContent()">
+                            <i class="fas fa-copy me-2"></i>Copier le contenu
+                        </button>
+
+                        {% if template.is_public %}
+                            <button class="btn btn-outline-info" onclick="shareTemplate()">
+                                <i class="fas fa-share me-2"></i>Partager
+                            </button>
+                        {% endif %}
+
+                        {% if template.created_by == request.user %}
+                            <button class="btn btn-outline-warning" onclick="duplicateTemplate()">
+                                <i class="fas fa-clone me-2"></i>Dupliquer
+                            </button>
+
+                            <button class="btn btn-outline-danger" onclick="confirmDelete()" data-confirm-delete="Êtes-vous sûr de vouloir supprimer ce template et tous ses documents associés ?">
+                                <i class="fas fa-trash me-2"></i>Supprimer
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal plein écran -->
+<div class="modal fade" id="fullscreenModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ template.title }} - Aperçu complet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="rendered-doc" id="fullscreenContent">
+                    <!-- Le contenu sera copié ici -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="printPreview()">
+                    <i class="fas fa-print me-1"></i>Imprimer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Basculer entre les modes d'aperçu
+    function togglePreviewMode(mode) {
+        const rawContent = document.getElementById('rawContent');
+        const renderedContent = document.getElementById('renderedContent');
+        const rawBtn = document.getElementById('rawMode');
+        const renderedBtn = document.getElementById('renderedMode');
+
+        if (mode === 'raw') {
+            rawContent.style.display = 'block';
+            renderedContent.style.display = 'none';
+            rawBtn.classList.add('active');
+            renderedBtn.classList.remove('active');
+        } else {
+            rawContent.style.display = 'none';
+            renderedContent.style.display = 'block';
+            rawBtn.classList.remove('active');
+            renderedBtn.classList.add('active');
+        }
+    }
+
+    // Afficher en plein écran
+    function showFullscreen() {
+        const content = document.getElementById('renderedContent').innerHTML;
+        document.getElementById('fullscreenContent').innerHTML = content;
+
+        const modal = new bootstrap.Modal(document.getElementById('fullscreenModal'));
+        modal.show();
+    }
+
+    // Imprimer l'aperçu
+    function printPreview() {
+        const content = document.getElementById('fullscreenContent').innerHTML;
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>{{ template.title }}</title>
+                    <style>
+                        body { font-family: 'Times New Roman', serif; margin: 2cm; line-height: 1.6; }
+                        .field-highlight { background: #fff3cd; padding: 2px 4px; border-radius: 3px; }
+                    </style>
+                </head>
+                <body>${content}</body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+    }
+
+    // Copier le lien du template
+    function copyTemplateLink() {
+        const url = window.location.href;
+        copyToClipboard(url, 'Lien du template copié !');
+    }
+
+    // Copier le contenu du template
+    function copyTemplateContent() {
+        const content = `{{ template.content|escapejs }}`;
+        copyToClipboard(content, 'Contenu du template copié !');
+    }
+
+    // Partager le template
+    function shareTemplate() {
+        const url = window.location.href;
+        const title = '{{ template.title|escapejs }}';
+
+        if (navigator.share) {
+            navigator.share({
+                title: title,
+                url: url
+            }).catch(console.error);
+        } else {
+            // Fallback: copier le lien
+            copyTemplateLink();
+        }
+    }
+
+    // Dupliquer le template
+    function duplicateTemplate() {
+        showConfirmModal(
+            'Dupliquer le template',
+            'Voulez-vous créer une copie de ce template ? La copie sera privée et vous pourrez la modifier.',
+            function() {
+                // Rediriger vers la création avec les données pré-remplies
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{% url "templates_app:template_create" %}';
+
+                // CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+
+                // Données du template
+                const fields = {
+                    'title': '{{ template.title|escapejs }} (Copie)',
+                    'description': '{{ template.description|escapejs }}',
+                    'content': `{{ template.content|escapejs }}`,
+                    'category': '{{ template.category.id|default:"" }}',
+                    'is_public': 'false'
+                };
+
+                Object.keys(fields).forEach(key => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = fields[key];
+                    form.appendChild(input);
+                });
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        );
+    }
+
+    // Confirmer la suppression
+    function confirmDelete() {
+        showConfirmModal(
+            'Supprimer le template',
+            'Êtes-vous sûr de vouloir supprimer ce template ? Cette action est irréversible et supprimera également tous les documents associés.',
+            function() {
+                // Créer un formulaire de suppression
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{% url "templates_app:template_delete" template.id %}';
+
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        );
+    }
+
+    // Exporter le template
+    function exportTemplate(format) {
+        const url = `{% url "templates_app:template_export" template.id %}?format=${format}`;
+        window.open(url, '_blank');
+    }
+
+    // Mettre en surbrillance les champs dans l'aperçu
+    function highlightFields() {
+        const content = document.getElementById('renderedContent');
+        let html = content.innerHTML;
+
+        // Remplacer les placeholders par des spans colorés
+        {% for field in fields %}
+            const regex{{ forloop.counter }} = /\{\{{{ field.field_name }}\}\}/g;
+            html = html.replace(regex{{ forloop.counter }}, '<span class="field-highlight">{{{{ field.field_name }}}}</span>');
+        {% endfor %}
+
+        content.innerHTML = html;
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        // Mettre en surbrillance les champs
+        highlightFields();
+
+        // Ajouter un token CSRF caché pour les actions
+        if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = '{{ csrf_token }}';
+            document.body.appendChild(csrfInput);
+        }
+    });
+</script>
+{% endblock %}

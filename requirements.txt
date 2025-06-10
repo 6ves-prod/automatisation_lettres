@@ -1,0 +1,31 @@
+# Requirements pour le projet DocBuilder Django
+# Version de base
+Django>=4.2.0,<5.0.0
+
+# Formulaires et UI
+django-crispy-forms>=2.0
+crispy-bootstrap5>=0.7
+
+# Traitement des images (optionnel)
+Pillow>=10.0.0
+
+# Export PDF (optionnel - décommentez si nécessaire)
+# reportlab>=4.0.0
+# weasyprint>=60.0
+
+# Base de données (décommentez selon vos besoins)
+# PostgreSQL
+# psycopg2-binary>=2.9.0
+
+# MySQL
+# mysqlclient>=2.2.0
+
+# Développement et tests (optionnel)
+# django-debug-toolbar>=4.0.0
+# pytest-django>=4.5.0
+# coverage>=7.0.0
+
+# Production (optionnel)
+# gunicorn>=21.0.0
+# whitenoise>=6.5.0
+# django-environ>=0.10.0
