@@ -152,3 +152,20 @@ TEMPLATES = [
         },
     },
 ]
+
+# Ajoutez ces lignes à votre settings.py
+
+# URLs de redirection après connexion/déconnexion
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Configuration des messages (déjà présente, mais vérifiez)
+from django.contrib.messages import constants as messages
+MESSAGE_TAGS = {
+    messages.DEBUG: 'debug',
+    messages.INFO: 'info',
+    messages.SUCCESS: 'success',
+    messages.WARNING: 'warning',
+    messages.ERROR: 'danger',
+}

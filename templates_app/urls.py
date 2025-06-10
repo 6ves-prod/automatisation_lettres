@@ -1,12 +1,17 @@
 # templates_app/urls.py
 from django.urls import path
-from . import views
+from . import views, auth_views
 
 app_name = 'templates_app'
 
 urlpatterns = [
     # Page d'accueil - redirige vers la liste des templates
     path('', views.template_list, name='home'),
+
+    # ===============================
+    # AUTHENTICATION
+    # ===============================
+    path('signup/', auth_views.signup_view, name='signup'),
 
     # ===============================
     # URLS POUR LES TEMPLATES
