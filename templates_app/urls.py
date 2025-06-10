@@ -1,50 +1,35 @@
-# templates_app/urls.py
 from django.urls import path
 from . import views, auth_views
 
 app_name = 'templates_app'
 
 urlpatterns = [
-    # Page d'accueil - redirige vers la liste des templates
-    path('', views.template_list, name='home'),
-
     # ===============================
-    # AUTHENTICATION
+    # AUTHENTIFICATION
     # ===============================
     path('signup/', auth_views.signup_view, name='signup'),
 
     # ===============================
-    # URLS POUR LES TEMPLATES
+    # TEMPLATES (avec vue par défaut)
     # ===============================
-
-    # Liste et recherche de templates
     path('templates/', views.template_list, name='template_list'),
-
-    # CRUD des templates
     path('templates/create/', views.template_create, name='template_create'),
     path('templates/<int:template_id>/', views.template_detail, name='template_detail'),
     path('templates/<int:template_id>/edit/', views.template_edit, name='template_edit'),
     path('templates/<int:template_id>/delete/', views.template_delete, name='template_delete'),
-
-    # Gestion des champs de templates
-    path('templates/<int:template_id>/fields/', views.template_edit_fields, name='template_edit_fields'),
-    path('templates/<int:template_id>/fields/add/', views.template_add_field, name='template_add_field'),
-    path('templates/<int:template_id>/fields/<int:field_id>/delete/', views.template_delete_field,
-         name='template_delete_field'),
-
-    # Prévisualisation et export
+    path('templates/<int:template_id>/duplicate/', views.template_duplicate, name='template_duplicate'),
     path('templates/<int:template_id>/preview/', views.template_preview, name='template_preview'),
     path('templates/<int:template_id>/export/', views.template_export, name='template_export'),
-    path('templates/<int:template_id>/duplicate/', views.template_duplicate, name='template_duplicate'),
+
+    # Gestion des champs
+    path('templates/<int:template_id>/fields/', views.template_edit_fields, name='template_edit_fields'),
+    path('templates/<int:template_id>/fields/add/', views.template_add_field, name='template_add_field'),
+    path('templates/<int:template_id>/fields/<int:field_id>/delete/', views.template_delete_field, name='template_delete_field'),
 
     # ===============================
-    # URLS POUR LES DOCUMENTS
+    # DOCUMENTS
     # ===============================
-
-    # Liste et recherche de documents
     path('documents/', views.document_list, name='document_list'),
-
-    # CRUD des documents
     path('documents/create/<int:template_id>/', views.document_create, name='document_create'),
     path('documents/<int:document_id>/', views.document_detail, name='document_detail'),
     path('documents/<int:document_id>/edit/', views.document_edit, name='document_edit'),
@@ -56,14 +41,9 @@ urlpatterns = [
     path('documents/<int:document_id>/export/html/', views.document_export_html, name='document_export_html'),
     path('documents/<int:document_id>/export/docx/', views.document_export_docx, name='document_export_docx'),
 
-    # Partage de documents
-    path('documents/<int:document_id>/share/', views.document_share, name='document_share'),
-    path('documents/<int:document_id>/public/', views.document_public_view, name='document_public_view'),
-
     # ===============================
-    # URLS POUR LES CATÉGORIES
+    # CATÉGORIES (placeholders)
     # ===============================
-
     path('categories/', views.category_list, name='category_list'),
     path('categories/create/', views.category_create, name='category_create'),
     path('categories/<int:category_id>/edit/', views.category_edit, name='category_edit'),

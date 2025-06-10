@@ -155,9 +155,7 @@
                     <!-- Vue rendue -->
                     <div id="renderedContent" class="rendered-doc">
                         {% autoescape off %}
-                            {% for line in template.content|linebreaksbr %}
-                                {{ line }}
-                            {% endfor %}
+                            {{ template.content|linebreaksbr }}
                         {% endautoescape %}
                     </div>
 
@@ -236,7 +234,7 @@
                             </div>
                         </div>
                         <div class="col-6">
-                            <h3 class="text-success mb-1">{{ template.documents.count }}</h3>
+                            <h3 class="text-success mb-1">{{ total_documents }}</h3>
                             <small class="text-muted">Documents créés</small>
                         </div>
                     </div>
@@ -245,15 +243,15 @@
 
                     <div class="d-flex justify-content-between mb-2">
                         <small class="text-muted">Documents terminés</small>
-                        <small class="fw-bold">{{ template.documents.filter:is_completed=True|length }}</small>
+                        <small class="fw-bold">{{ completed_documents_count }}</small>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <small class="text-muted">Brouillons</small>
-                        <small class="fw-bold">{{ template.documents.filter:is_completed=False|length }}</small>
+                        <small class="fw-bold">{{ draft_documents_count }}</small>
                     </div>
                     <div class="d-flex justify-content-between">
                         <small class="text-muted">Caractères</small>
-                        <small class="fw-bold">{{ template.content|length }}</small>
+                        <small class="fw-bold">{{ template_content_length }}</small>
                     </div>
                 </div>
             </div>
@@ -273,13 +271,13 @@
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div class="flex-grow-1">
                                         <strong class="d-block">{{ field.field_label }}</strong>
-                                        <code class="small text-muted">{{{{ field.field_name }}}}</code>
+                                        <code class="small text-muted">&#123;&#123;{{ field.field_name }}&#125;&#125;</code>
                                         {% if field.placeholder_text %}
                                             <br><small class="text-muted">{{ field.placeholder_text }}</small>
                                         {% endif %}
                                     </div>
                                     <div class="text-end">
-                                        <span class="badge bg-{{ field.field_type|default:'secondary' }}">
+                                        <span class="badge bg-secondary">
                                             {{ field.get_field_type_display }}
                                         </span>
                                         {% if field.is_required %}
@@ -301,7 +299,7 @@
                         <div class="text-center text-muted py-3">
                             <i class="fas fa-info-circle fa-2x mb-2"></i>
                             <p class="mb-0">Aucun champ dynamique détecté</p>
-                            <small>Ajoutez des champs avec la syntaxe {{nom_champ}}</small>
+                            <small>Ajoutez des champs avec la syntaxe &#123;&#123;nom_champ&#125;&#125;</small>
                         </div>
                     {% endif %}
                 </div>
@@ -372,182 +370,101 @@
 
 {% block extra_js %}
 <script>
-    // Basculer entre les modes d'aperçu
-    function togglePreviewMode(mode) {
-        const rawContent = document.getElementById('rawContent');
-        const renderedContent = document.getElementById('renderedContent');
-        const rawBtn = document.getElementById('rawMode');
-        const renderedBtn = document.getElementById('renderedMode');
+// Basculer entre les modes d'aperçu
+function togglePreviewMode(mode) {
+    var rawContent = document.getElementById('rawContent');
+    var renderedContent = document.getElementById('renderedContent');
+    var rawBtn = document.getElementById('rawMode');
+    var renderedBtn = document.getElementById('renderedMode');
 
-        if (mode === 'raw') {
-            rawContent.style.display = 'block';
-            renderedContent.style.display = 'none';
-            rawBtn.classList.add('active');
-            renderedBtn.classList.remove('active');
-        } else {
-            rawContent.style.display = 'none';
-            renderedContent.style.display = 'block';
-            rawBtn.classList.remove('active');
-            renderedBtn.classList.add('active');
-        }
+    if (mode === 'raw') {
+        rawContent.style.display = 'block';
+        renderedContent.style.display = 'none';
+        rawBtn.classList.add('active');
+        renderedBtn.classList.remove('active');
+    } else {
+        rawContent.style.display = 'none';
+        renderedContent.style.display = 'block';
+        rawBtn.classList.remove('active');
+        renderedBtn.classList.add('active');
     }
+}
 
-    // Afficher en plein écran
-    function showFullscreen() {
-        const content = document.getElementById('renderedContent').innerHTML;
-        document.getElementById('fullscreenContent').innerHTML = content;
+// Afficher en plein écran
+function showFullscreen() {
+    var content = document.getElementById('renderedContent').innerHTML;
+    document.getElementById('fullscreenContent').innerHTML = content;
 
-        const modal = new bootstrap.Modal(document.getElementById('fullscreenModal'));
-        modal.show();
+    var modal = new bootstrap.Modal(document.getElementById('fullscreenModal'));
+    modal.show();
+}
+
+// Imprimer l'aperçu
+function printPreview() {
+    var content = document.getElementById('fullscreenContent').innerHTML;
+    var printWindow = window.open('', '_blank');
+    printWindow.document.write('<html><head><title>{{ template.title }}</title><style>body { font-family: "Times New Roman", serif; margin: 2cm; line-height: 1.6; } .field-highlight { background: #fff3cd; padding: 2px 4px; border-radius: 3px; }</style></head><body>' + content + '</body></html>');
+    printWindow.document.close();
+    printWindow.print();
+}
+
+// Copier le lien du template
+function copyTemplateLink() {
+    var url = window.location.href;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(function() {
+            alert('Lien du template copié !');
+        });
+    } else {
+        alert('Fonction de copie non supportée par votre navigateur');
     }
+}
 
-    // Imprimer l'aperçu
-    function printPreview() {
-        const content = document.getElementById('fullscreenContent').innerHTML;
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>{{ template.title }}</title>
-                    <style>
-                        body { font-family: 'Times New Roman', serif; margin: 2cm; line-height: 1.6; }
-                        .field-highlight { background: #fff3cd; padding: 2px 4px; border-radius: 3px; }
-                    </style>
-                </head>
-                <body>${content}</body>
-            </html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
+// Copier le contenu du template
+function copyTemplateContent() {
+    var content = '{{ template.content|escapejs }}';
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(content).then(function() {
+            alert('Contenu du template copié !');
+        });
+    } else {
+        alert('Fonction de copie non supportée par votre navigateur');
     }
+}
 
-    // Copier le lien du template
-    function copyTemplateLink() {
-        const url = window.location.href;
-        copyToClipboard(url, 'Lien du template copié !');
+// Partager le template
+function shareTemplate() {
+    var url = window.location.href;
+    var title = '{{ template.title|escapejs }}';
+
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            url: url
+        }).catch(console.error);
+    } else {
+        copyTemplateLink();
     }
+}
 
-    // Copier le contenu du template
-    function copyTemplateContent() {
-        const content = `{{ template.content|escapejs }}`;
-        copyToClipboard(content, 'Contenu du template copié !');
+// Dupliquer le template
+function duplicateTemplate() {
+    if (confirm('Voulez-vous créer une copie de ce template ? La copie sera privée et vous pourrez la modifier.')) {
+        window.location.href = '{% url "templates_app:template_duplicate" template.id %}';
     }
+}
 
-    // Partager le template
-    function shareTemplate() {
-        const url = window.location.href;
-        const title = '{{ template.title|escapejs }}';
-
-        if (navigator.share) {
-            navigator.share({
-                title: title,
-                url: url
-            }).catch(console.error);
-        } else {
-            // Fallback: copier le lien
-            copyTemplateLink();
-        }
+// Confirmer la suppression
+function confirmDelete() {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce template ? Cette action est irréversible et supprimera également tous les documents associés.')) {
+        window.location.href = '{% url "templates_app:template_delete" template.id %}';
     }
+}
 
-    // Dupliquer le template
-    function duplicateTemplate() {
-        showConfirmModal(
-            'Dupliquer le template',
-            'Voulez-vous créer une copie de ce template ? La copie sera privée et vous pourrez la modifier.',
-            function() {
-                // Rediriger vers la création avec les données pré-remplies
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '{% url "templates_app:template_create" %}';
-
-                // CSRF token
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = 'csrfmiddlewaretoken';
-                csrfInput.value = csrfToken;
-                form.appendChild(csrfInput);
-
-                // Données du template
-                const fields = {
-                    'title': '{{ template.title|escapejs }} (Copie)',
-                    'description': '{{ template.description|escapejs }}',
-                    'content': `{{ template.content|escapejs }}`,
-                    'category': '{{ template.category.id|default:"" }}',
-                    'is_public': 'false'
-                };
-
-                Object.keys(fields).forEach(key => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = fields[key];
-                    form.appendChild(input);
-                });
-
-                document.body.appendChild(form);
-                form.submit();
-            }
-        );
-    }
-
-    // Confirmer la suppression
-    function confirmDelete() {
-        showConfirmModal(
-            'Supprimer le template',
-            'Êtes-vous sûr de vouloir supprimer ce template ? Cette action est irréversible et supprimera également tous les documents associés.',
-            function() {
-                // Créer un formulaire de suppression
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '{% url "templates_app:template_delete" template.id %}';
-
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = 'csrfmiddlewaretoken';
-                csrfInput.value = csrfToken;
-                form.appendChild(csrfInput);
-
-                document.body.appendChild(form);
-                form.submit();
-            }
-        );
-    }
-
-    // Exporter le template
-    function exportTemplate(format) {
-        const url = `{% url "templates_app:template_export" template.id %}?format=${format}`;
-        window.open(url, '_blank');
-    }
-
-    // Mettre en surbrillance les champs dans l'aperçu
-    function highlightFields() {
-        const content = document.getElementById('renderedContent');
-        let html = content.innerHTML;
-
-        // Remplacer les placeholders par des spans colorés
-        {% for field in fields %}
-            const regex{{ forloop.counter }} = /\{\{{{ field.field_name }}\}\}/g;
-            html = html.replace(regex{{ forloop.counter }}, '<span class="field-highlight">{{{{ field.field_name }}}}</span>');
-        {% endfor %}
-
-        content.innerHTML = html;
-    }
-
-    // Initialisation
-    document.addEventListener('DOMContentLoaded', function() {
-        // Mettre en surbrillance les champs
-        highlightFields();
-
-        // Ajouter un token CSRF caché pour les actions
-        if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrfmiddlewaretoken';
-            csrfInput.value = '{{ csrf_token }}';
-            document.body.appendChild(csrfInput);
-        }
-    });
+// Exporter le template
+function exportTemplate(format) {
+    var url = '{% url "templates_app:template_export" template.id %}?format=' + format;
+    window.open(url, '_blank');
+}
 </script>
 {% endblock %}
