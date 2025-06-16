@@ -1,0 +1,729 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Accueil - DocBuilder{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    <section class="hero-section text-center py-5 mb-5 fade-in">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="hero-content">
+                    <div class="mb-4">
+                        <i class="fas fa-file-signature display-1 text-primary mb-3"></i>
+                    </div>
+                    <h1 class="display-3 fw-bold mb-4">
+                        Créez vos documents
+                        <span class="text-primary">intelligemment</span>
+                    </h1>
+                    <p class="lead fs-4 mb-5">
+                        DocBuilder transforme vos modèles de documents en formulaires dynamiques.
+                        Créez une fois, réutilisez à l'infini.
+                    </p>
+
+                    {% if not user.is_authenticated %}
+                        <div class="cta-buttons">
+                            <a href="{% url 'templates_app:signup' %}" class="btn btn-primary btn-lg me-3 mb-3">
+                                <i class="fas fa-rocket me-2"></i>
+                                Commencer gratuitement
+                            </a>
+                            <a href="{% url 'templates_app:login' %}" class="btn btn-outline-primary btn-lg mb-3">
+                                <i class="fas fa-sign-in-alt me-2"></i>
+                                Se connecter
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="cta-buttons">
+                            <a href="{% url 'templates_app:template_create' %}" class="btn btn-success btn-lg me-3 mb-3">
+                                <i class="fas fa-plus me-2"></i>
+                                Créer un template
+                            </a>
+                            <a href="{% url 'templates_app:template_list' %}" class="btn btn-primary btn-lg mb-3">
+                                <i class="fas fa-layer-group me-2"></i>
+                                Mes templates
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section py-5 mb-5">
+        <div class="row text-center mb-5">
+            <div class="col-12">
+                <h2 class="display-5 fw-bold mb-3">Pourquoi choisir DocBuilder ?</h2>
+                <p class="lead text-muted">Une solution complète pour tous vos besoins documentaires</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4 fade-in">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-magic fa-3x text-primary"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Templates Dynamiques</h5>
+                        <p class="card-text">
+                            Créez des modèles avec des champs variables.
+                            Utilisez la syntaxe {{nom_champ}} pour rendre vos documents interactifs.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 fade-in">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-users fa-3x text-success"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Collaboration</h5>
+                        <p class="card-text">
+                            Partagez vos templates avec votre équipe.
+                            Créez des bibliothèques communes et travaillez ensemble efficacement.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 fade-in">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-download fa-3x text-info"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Export Multi-format</h5>
+                        <p class="card-text">
+                            Exportez vos documents en PDF, Word, HTML ou texte.
+                            Tous les formats dont vous avez besoin, en un clic.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section raccourcie -->
+    <section class="quick-intro py-5 mb-5">
+        <div class="row text-center">
+            <div class="col-12">
+                <h2 class="display-5 fw-bold mb-4">Trois étapes simples</h2>
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="quick-step">
+                            <div class="step-icon mb-3">
+                                <span class="badge bg-primary fs-3 rounded-circle p-3">1</span>
+                            </div>
+                            <h6 class="fw-bold">Créez votre template</h6>
+                            <p class="small text-muted mb-0">Rédigez avec des champs {{dynamiques}}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="quick-step">
+                            <div class="step-icon mb-3">
+                                <span class="badge bg-success fs-3 rounded-circle p-3">2</span>
+                            </div>
+                            <h6 class="fw-bold">Remplissez le formulaire</h6>
+                            <p class="small text-muted mb-0">Formulaire généré automatiquement</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="quick-step">
+                            <div class="step-icon mb-3">
+                                <span class="badge bg-info fs-3 rounded-circle p-3">3</span>
+                            </div>
+                            <h6 class="fw-bold">Document final</h6>
+                            <p class="small text-muted mb-0">Résultat instantané et personnalisé</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button class="btn btn-outline-primary" onclick="showTutorial()">
+                        <i class="fas fa-play-circle me-2"></i>Voir le tutoriel détaillé
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use cases Section -->
+    <section class="use-cases py-5 mb-5">
+        <div class="row text-center mb-5">
+            <div class="col-12">
+                <h2 class="display-5 fw-bold mb-3">Cas d'usage populaires</h2>
+                <p class="lead text-muted">DocBuilder s'adapte à tous vos besoins</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-3 col-md-6 fade-in">
+                <div class="use-case-card text-center p-4">
+                    <i class="fas fa-file-contract fa-3x text-primary mb-3"></i>
+                    <h6 class="fw-bold">Contrats</h6>
+                    <p class="small text-muted">Contrats de travail, commerciaux, de prestation</p>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 fade-in">
+                <div class="use-case-card text-center p-4">
+                    <i class="fas fa-file-invoice fa-3x text-success mb-3"></i>
+                    <h6 class="fw-bold">Factures</h6>
+                    <p class="small text-muted">Factures, devis, bons de commande</p>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 fade-in">
+                <div class="use-case-card text-center p-4">
+                    <i class="fas fa-envelope fa-3x text-info mb-3"></i>
+                    <h6 class="fw-bold">Courriers</h6>
+                    <p class="small text-muted">Lettres officielles, mails types</p>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 fade-in">
+                <div class="use-case-card text-center p-4">
+                    <i class="fas fa-clipboard-check fa-3x text-warning mb-3"></i>
+                    <h6 class="fw-bold">Rapports</h6>
+                    <p class="small text-muted">Rapports d'activité, comptes-rendus</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    {% if not user.is_authenticated %}
+    <section class="cta-section text-center py-5 mb-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="cta-card p-5 rounded-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h2 class="text-white fw-bold mb-3">Prêt à transformer vos documents ?</h2>
+                    <p class="text-white fs-5 mb-4 opacity-90">
+                        Rejoignez des milliers d'utilisateurs qui gagnent du temps avec DocBuilder
+                    </p>
+                    <a href="{% url 'templates_app:signup' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-rocket me-2"></i>
+                        Commencer maintenant
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Stats Section -->
+    <section class="stats-section py-5">
+        <div class="row text-center">
+            <div class="col-md-3 fade-in">
+                <div class="stat-item mb-4">
+                    <h3 class="display-4 fw-bold text-primary mb-2">1000+</h3>
+                    <p class="text-muted">Templates créés</p>
+                </div>
+            </div>
+            <div class="col-md-3 fade-in">
+                <div class="stat-item mb-4">
+                    <h3 class="display-4 fw-bold text-success mb-2">500+</h3>
+                    <p class="text-muted">Utilisateurs actifs</p>
+                </div>
+            </div>
+            <div class="col-md-3 fade-in">
+                <div class="stat-item mb-4">
+                    <h3 class="display-4 fw-bold text-info mb-2">10K+</h3>
+                    <p class="text-muted">Documents générés</p>
+                </div>
+            </div>
+            <div class="col-md-3 fade-in">
+                <div class="stat-item mb-4">
+                    <h3 class="display-4 fw-bold text-warning mb-2">99%</h3>
+                    <p class="text-muted">Satisfaction client</p>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Modal de tutoriel -->
+<div class="modal fade" id="tutorialModal" tabindex="-1" aria-labelledby="tutorialModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header border-0 text-center w-100">
+                <div class="w-100">
+                    <h4 class="modal-title fw-bold text-primary mb-2" id="tutorialModalLabel">
+                        <i class="fas fa-graduation-cap me-2"></i>Bienvenue sur DocBuilder !
+                    </h4>
+                    <p class="text-muted mb-0">Découvrez comment créer vos premiers documents en 3 étapes simples</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body px-4 pb-4">
+                <!-- Indicateur de progression -->
+                <div class="progress mb-4" style="height: 6px;">
+                    <div class="progress-bar bg-primary" id="tutorialProgress" style="width: 33%"></div>
+                </div>
+
+                <!-- Étapes du tutoriel -->
+                <div class="tutorial-step active" id="step1">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="step-badge mb-3">
+                                <span class="badge bg-primary fs-4 rounded-circle p-3">1</span>
+                            </div>
+                            <h5 class="fw-bold mb-3">Créez votre template</h5>
+                            <p class="text-muted mb-3">
+                                Rédigez votre document et ajoutez des champs dynamiques avec la syntaxe
+                                <code class="bg-warning px-2 py-1 rounded">{{nom_du_champ}}</code>
+                            </p>
+                            <div class="example-highlight p-3 rounded" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">
+                                <h6 class="fw-bold text-primary mb-2">Exemple :</h6>
+                                <code class="text-dark">
+                                    Bonjour <span class="text-danger">{{nom_client}}</span>, <br>
+                                    Votre commande <span class="text-danger">{{numero_commande}}</span> est prête !
+                                </code>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="tutorial-animation text-center">
+                                <div class="fake-editor p-4 rounded border">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="fake-toolbar">
+                                            <span class="badge bg-light text-dark me-1">B</span>
+                                            <span class="badge bg-light text-dark me-1">I</span>
+                                            <span class="badge bg-light text-dark">U</span>
+                                        </div>
+                                    </div>
+                                    <div class="fake-content text-start">
+                                        <div class="typing-demo">
+                                            Contrat pour <span class="field-demo">{{nom_client}}</span>...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tutorial-step" id="step2" style="display: none;">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="step-badge mb-3">
+                                <span class="badge bg-success fs-4 rounded-circle p-3">2</span>
+                            </div>
+                            <h5 class="fw-bold mb-3">Formulaire automatique</h5>
+                            <p class="text-muted mb-3">
+                                DocBuilder détecte automatiquement vos champs dynamiques et génère
+                                un formulaire personnalisé pour les remplir.
+                            </p>
+                            <div class="features-list">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    <span>Détection automatique des champs</span>
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    <span>Types de champs intelligents</span>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    <span>Validation automatique</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="tutorial-animation">
+                                <div class="fake-form p-4 rounded border bg-light">
+                                    <h6 class="fw-bold mb-3">Remplir le document</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Nom du client</label>
+                                        <input type="text" class="form-control form-control-sm" value="Jean Dupont" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Numéro de commande</label>
+                                        <input type="text" class="form-control form-control-sm" value="#CMD-001" readonly>
+                                    </div>
+                                    <button class="btn btn-success btn-sm w-100">
+                                        <i class="fas fa-magic me-1"></i>Générer le document
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tutorial-step" id="step3" style="display: none;">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="step-badge mb-3">
+                                <span class="badge bg-info fs-4 rounded-circle p-3">3</span>
+                            </div>
+                            <h5 class="fw-bold mb-3">Document final</h5>
+                            <p class="text-muted mb-3">
+                                Votre document est généré instantanément avec toutes les données personnalisées.
+                                Vous pouvez l'exporter, l'imprimer ou le modifier.
+                            </p>
+                            <div class="action-buttons">
+                                <div class="d-flex gap-2 mb-3">
+                                    <span class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-download me-1"></i>PDF
+                                    </span>
+                                    <span class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-file-word me-1"></i>Word
+                                    </span>
+                                    <span class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-print me-1"></i>Imprimer
+                                    </span>
+                                </div>
+                                <p class="small text-success">
+                                    <i class="fas fa-check-circle me-1"></i>
+                                    Prêt à commencer ? Créez votre premier template !
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="tutorial-animation">
+                                <div class="fake-document p-4 rounded border bg-white">
+                                    <div class="document-preview">
+                                        <h6 class="fw-bold text-primary mb-3">Résultat final</h6>
+                                        <div class="generated-content">
+                                            <p class="mb-2">Bonjour <strong class="text-primary">Jean Dupont</strong>,</p>
+                                            <p class="mb-0">Votre commande <strong class="text-success">#CMD-001</strong> est prête !</p>
+                                        </div>
+                                        <div class="success-indicator mt-3 p-2 bg-success text-white rounded text-center">
+                                            <i class="fas fa-check-circle me-1"></i>Document généré !
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 d-flex justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-link text-muted" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Passer le tutoriel
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary me-2" id="prevBtn" onclick="previousStep()" style="display: none;">
+                        <i class="fas fa-arrow-left me-1"></i>Précédent
+                    </button>
+                    <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextStep()">
+                        Suivant <i class="fas fa-arrow-right ms-1"></i>
+                    </button>
+                    <a href="{% url 'templates_app:template_create' %}" class="btn btn-success" id="startBtn" style="display: none;">
+                        <i class="fas fa-rocket me-2"></i>Commencer maintenant !
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Styles pour le tutoriel -->
+<style>
+    .quick-step {
+        transition: transform 0.3s ease;
+    }
+
+    .quick-step:hover {
+        transform: translateY(-10px);
+    }
+
+    .tutorial-step {
+        min-height: 400px;
+        display: flex;
+        align-items: center;
+    }
+
+    .step-badge {
+        text-align: center;
+    }
+
+    .fake-editor, .fake-form, .fake-document {
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        transition: all 0.3s ease;
+    }
+
+    .field-demo {
+        background: #fff3cd;
+        color: #856404;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-weight: bold;
+    }
+
+    .typing-demo {
+        font-family: 'Courier New', monospace;
+        animation: typewriter 2s steps(30) infinite;
+    }
+
+    @keyframes typewriter {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .tutorial-animation {
+        animation: fadeInLeft 0.6s ease;
+    }
+
+    @keyframes fadeInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .progress-bar {
+        transition: width 0.5s ease;
+    }
+
+    .success-indicator {
+        animation: pulse 2s infinite;
+    }
+</style>
+
+<script>
+    let currentStep = 1;
+    const totalSteps = 3;
+
+    // Variables pour détecter les nouveaux utilisateurs
+    const isNewUser = {% if user.is_authenticated and is_new_user %}true{% else %}false{% endif %};
+    const showTutorialParam = new URLSearchParams(window.location.search).get('tutorial');
+
+    function showTutorial() {
+        const modal = new bootstrap.Modal(document.getElementById('tutorialModal'));
+        modal.show();
+        resetTutorial();
+    }
+
+    function resetTutorial() {
+        currentStep = 1;
+        updateTutorialDisplay();
+    }
+
+    function nextStep() {
+        if (currentStep < totalSteps) {
+            currentStep++;
+            updateTutorialDisplay();
+        }
+    }
+
+    function previousStep() {
+        if (currentStep > 1) {
+            currentStep--;
+            updateTutorialDisplay();
+        }
+    }
+
+    function updateTutorialDisplay() {
+        // Masquer toutes les étapes
+        document.querySelectorAll('.tutorial-step').forEach(step => {
+            step.style.display = 'none';
+        });
+
+        // Afficher l'étape actuelle
+        document.getElementById(`step${currentStep}`).style.display = 'block';
+
+        // Mettre à jour la barre de progression
+        const progress = (currentStep / totalSteps) * 100;
+        document.getElementById('tutorialProgress').style.width = `${progress}%`;
+
+        // Gérer les boutons
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const startBtn = document.getElementById('startBtn');
+
+        prevBtn.style.display = currentStep > 1 ? 'inline-block' : 'none';
+
+        if (currentStep === totalSteps) {
+            nextBtn.style.display = 'none';
+            startBtn.style.display = 'inline-block';
+        } else {
+            nextBtn.style.display = 'inline-block';
+            startBtn.style.display = 'none';
+        }
+
+        // Animation de l'étape
+        const currentStepElement = document.getElementById(`step${currentStep}`);
+        currentStepElement.style.opacity = '0';
+        setTimeout(() => {
+            currentStepElement.style.opacity = '1';
+        }, 100);
+    }
+
+    // Afficher automatiquement le tutoriel pour les nouveaux utilisateurs
+    document.addEventListener('DOMContentLoaded', function() {
+        // Afficher le tutoriel si c'est un nouvel utilisateur ou si demandé explicitement
+        if (isNewUser || showTutorialParam === 'true') {
+            setTimeout(() => {
+                showTutorial();
+            }, 1000); // Attendre 1 seconde après le chargement
+        }
+
+        // Marquer comme vu (optionnel - utiliser localStorage ou une requête AJAX)
+        if (isNewUser) {
+            localStorage.setItem('tutorialShown', 'true');
+        }
+    });
+
+    // Navigation au clavier
+    document.addEventListener('keydown', function(e) {
+        const modal = document.getElementById('tutorialModal');
+        if (modal.classList.contains('show')) {
+            if (e.key === 'ArrowRight' && currentStep < totalSteps) {
+                nextStep();
+            } else if (e.key === 'ArrowLeft' && currentStep > 1) {
+                previousStep();
+            } else if (e.key === 'Escape') {
+                bootstrap.Modal.getInstance(modal).hide();
+            }
+        }
+    });
+</script>
+
+<!-- Styles spécifiques à la page d'accueil -->
+<style>
+    .hero-section {
+        min-height: 70vh;
+        display: flex;
+        align-items: center;
+    }
+
+    .hero-content {
+        animation: fadeInUp 1s ease-out;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .feature-icon {
+        transition: transform 0.3s ease;
+    }
+
+    .card:hover .feature-icon {
+        transform: scale(1.1);
+    }
+
+    .step-number .badge {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .example-box, .form-example, .result-example {
+        border: 2px dashed #dee2e6;
+        transition: border-color 0.3s ease;
+    }
+
+    .step-card:hover .example-box,
+    .step-card:hover .form-example,
+    .step-card:hover .result-example {
+        border-color: #0d6efd;
+    }
+
+    .use-case-card {
+        transition: all 0.3s ease;
+        border-radius: 15px;
+        background: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .use-case-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+
+    .stat-item h3 {
+        font-family: 'Segoe UI', sans-serif;
+        font-weight: 700;
+    }
+
+    .cta-card {
+        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+    }
+
+    /* Animations au scroll */
+    .fade-in {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: all 0.6s ease;
+    }
+
+    .fade-in.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
+
+<script>
+    // Animation au scroll
+    document.addEventListener('DOMContentLoaded', function() {
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        // Observer tous les éléments fade-in
+        document.querySelectorAll('.fade-in').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Animation des statistiques
+        const statNumbers = document.querySelectorAll('.stat-item h3');
+        const statsObserver = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    animateNumber(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        statNumbers.forEach(stat => {
+            statsObserver.observe(stat);
+        });
+    });
+
+    function animateNumber(element) {
+        const text = element.textContent;
+        const number = parseInt(text.replace(/\D/g, ''));
+        const suffix = text.replace(/\d/g, '');
+        let current = 0;
+        const increment = number / 50;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= number) {
+                element.textContent = number + suffix;
+                clearInterval(timer);
+            } else {
+                element.textContent = Math.floor(current) + suffix;
+            }
+        }, 30);
+    }
+</script>
+{% endblock %}

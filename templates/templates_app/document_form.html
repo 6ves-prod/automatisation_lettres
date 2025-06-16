@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
 {% load static %}
-{% load custom_filters %}
 
 {% block title %}
     {% if document %}
@@ -13,13 +12,13 @@
 
 {% block extra_css %}
 <style>
-    .template-preview {
-        background: #f8f9fa;
-        border: 2px dashed #dee2e6;
-        border-radius: 10px;
-        padding: 20px;
-        font-family: 'Times New Roman', serif;
-        line-height: 1.6;
+    .main-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        margin: 20px;
+        padding: 30px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     }
 
     .field-input-group {
@@ -32,7 +31,7 @@
     }
 
     .field-input-group:hover {
-        border-color: var(--bs-primary);
+        border-color: var(--primary-gradient);
         box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
     }
 
@@ -56,6 +55,15 @@
         font-family: 'Courier New', monospace;
         font-weight: 600;
         color: #856404;
+    }
+
+    .template-preview {
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        font-family: 'Times New Roman', serif;
+        line-height: 1.6;
     }
 </style>
 {% endblock %}
@@ -155,94 +163,223 @@
                             </h6>
 
                             {% for field in fields %}
-                                <div class="field-input-group {% if field.is_required %}required{% endif %}">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <label class="form-label fw-bold mb-0">
-                                            {{ field.field_label }}
-                                            {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
-                                        </label>
-                                        <small class="text-muted">
-                                            <span class="field-preview">&#123;&#123;{{ field.field_name }}&#125;&#125;</span>
-                                        </small>
-                                    </div>
+                                {% comment %}Récupérer la valeur actuelle pour ce champ{% endcomment %}
+                                {% with field_value_found=False %}
+                                    {% for field_value in document.field_values.all %}
+                                        {% if field_value.template_field.id == field.id %}
+                                            {% with current_field_value=field_value.value field_value_found=True %}
 
-                                    {% if field.field_type == 'textarea' %}
-                                        <textarea
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-control"
-                                            rows="4"
-                                            placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
-                                            {% if field.is_required %}required{% endif %}>{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}</textarea>
+                                                <div class="field-input-group {% if field.is_required %}required{% endif %}">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <label class="form-label fw-bold mb-0">
+                                                            {{ field.field_label }}
+                                                            {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                                                        </label>
+                                                        <small class="text-muted">
+                                                            <span class="field-preview">&#123;&#123;{{ field.field_name }}&#125;&#125;</span>
+                                                        </small>
+                                                    </div>
 
-                                    {% elif field.field_type == 'select' %}
-                                        <select
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-select"
-                                            {% if field.is_required %}required{% endif %}>
-                                            <option value="">Sélectionner...</option>
-                                            {% for option in field.get_options_list %}
-                                                <option value="{{ option }}" {% if current_values %}{% if current_values|get_item:"field_"|add:field.id == option %}selected{% endif %}{% endif %}>{{ option }}</option>
-                                            {% endfor %}
-                                        </select>
+                                                    {% if field.field_type == 'textarea' %}
+                                                        <textarea
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-control"
+                                                            rows="4"
+                                                            placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                                            {% if field.is_required %}required{% endif %}>{{ current_field_value|default:'' }}</textarea>
 
-                                    {% elif field.field_type == 'date' %}
-                                        <input
-                                            type="date"
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-control"
-                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
-                                            {% if field.is_required %}required{% endif %}>
+                                                    {% elif field.field_type == 'select' %}
+                                                        <select
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-select"
+                                                            {% if field.is_required %}required{% endif %}>
+                                                            <option value="">Sélectionner...</option>
+                                                            {% for option in field.get_options_list %}
+                                                                <option value="{{ option }}" {% if current_field_value == option %}selected{% endif %}>{{ option }}</option>
+                                                            {% endfor %}
+                                                        </select>
 
-                                    {% elif field.field_type == 'number' %}
-                                        <input
-                                            type="number"
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-control"
-                                            placeholder="{{ field.placeholder_text|default:'Entrez un nombre...' }}"
-                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
-                                            {% if field.is_required %}required{% endif %}>
+                                                    {% elif field.field_type == 'date' %}
+                                                        <input
+                                                            type="date"
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-control"
+                                                            value="{{ current_field_value|default:'' }}"
+                                                            {% if field.is_required %}required{% endif %}>
 
-                                    {% elif field.field_type == 'email' %}
-                                        <input
-                                            type="email"
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-control"
-                                            placeholder="{{ field.placeholder_text|default:'exemple@email.com' }}"
-                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
-                                            {% if field.is_required %}required{% endif %}>
+                                                    {% elif field.field_type == 'number' %}
+                                                        <input
+                                                            type="number"
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-control"
+                                                            placeholder="{{ field.placeholder_text|default:'Entrez un nombre...' }}"
+                                                            value="{{ current_field_value|default:'' }}"
+                                                            {% if field.is_required %}required{% endif %}>
 
-                                    {% elif field.field_type == 'url' %}
-                                        <input
-                                            type="url"
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-control"
-                                            placeholder="{{ field.placeholder_text|default:'https://exemple.com' }}"
-                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
-                                            {% if field.is_required %}required{% endif %}>
+                                                    {% elif field.field_type == 'email' %}
+                                                        <input
+                                                            type="email"
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-control"
+                                                            placeholder="{{ field.placeholder_text|default:'exemple@email.com' }}"
+                                                            value="{{ current_field_value|default:'' }}"
+                                                            {% if field.is_required %}required{% endif %}>
 
-                                    {% else %}
-                                        <input
-                                            type="text"
-                                            name="field_{{ field.id }}"
-                                            id="field_{{ field.id }}"
-                                            class="form-control"
-                                            placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
-                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
-                                            {% if field.is_required %}required{% endif %}>
-                                    {% endif %}
+                                                    {% elif field.field_type == 'url' %}
+                                                        <input
+                                                            type="url"
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-control"
+                                                            placeholder="{{ field.placeholder_text|default:'https://exemple.com' }}"
+                                                            value="{{ current_field_value|default:'' }}"
+                                                            {% if field.is_required %}required{% endif %}>
 
-                                    {% if field.placeholder_text %}
-                                        <div class="form-text">
-                                            <i class="fas fa-info-circle me-1"></i>{{ field.placeholder_text }}
+                                                    {% else %}
+                                                        <input
+                                                            type="text"
+                                                            name="field_{{ field.id }}"
+                                                            id="field_{{ field.id }}"
+                                                            class="form-control"
+                                                            placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                                            value="{{ current_field_value|default:'' }}"
+                                                            {% if field.is_required %}required{% endif %}>
+                                                    {% endif %}
+
+                                                    {% if field.placeholder_text %}
+                                                        <div class="form-text">
+                                                            <i class="fas fa-info-circle me-1"></i>{{ field.placeholder_text }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+
+                                            {% endwith %}
+                                        {% endif %}
+                                    {% empty %}
+                                        {% comment %}Aucun document.field_values, donc nouveau document{% endcomment %}
+                                        <div class="field-input-group {% if field.is_required %}required{% endif %}">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <label class="form-label fw-bold mb-0">
+                                                    {{ field.field_label }}
+                                                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                                                </label>
+                                                <small class="text-muted">
+                                                    <span class="field-preview">&#123;&#123;{{ field.field_name }}&#125;&#125;</span>
+                                                </small>
+                                            </div>
+
+                                            {% if field.field_type == 'textarea' %}
+                                                <textarea
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    rows="4"
+                                                    placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                                    {% if field.is_required %}required{% endif %}></textarea>
+
+                                            {% elif field.field_type == 'select' %}
+                                                <select
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-select"
+                                                    {% if field.is_required %}required{% endif %}>
+                                                    <option value="">Sélectionner...</option>
+                                                    {% for option in field.get_options_list %}
+                                                        <option value="{{ option }}">{{ option }}</option>
+                                                    {% endfor %}
+                                                </select>
+
+                                            {% elif field.field_type == 'date' %}
+                                                <input
+                                                    type="date"
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    {% if field.is_required %}required{% endif %}>
+
+                                            {% elif field.field_type == 'number' %}
+                                                <input
+                                                    type="number"
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    placeholder="{{ field.placeholder_text|default:'Entrez un nombre...' }}"
+                                                    {% if field.is_required %}required{% endif %}>
+
+                                            {% elif field.field_type == 'email' %}
+                                                <input
+                                                    type="email"
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    placeholder="{{ field.placeholder_text|default:'exemple@email.com' }}"
+                                                    {% if field.is_required %}required{% endif %}>
+
+                                            {% elif field.field_type == 'url' %}
+                                                <input
+                                                    type="url"
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    placeholder="{{ field.placeholder_text|default:'https://exemple.com' }}"
+                                                    {% if field.is_required %}required{% endif %}>
+
+                                            {% else %}
+                                                <input
+                                                    type="text"
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                                    {% if field.is_required %}required{% endif %}>
+                                            {% endif %}
+
+                                            {% if field.placeholder_text %}
+                                                <div class="form-text">
+                                                    <i class="fas fa-info-circle me-1"></i>{{ field.placeholder_text }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+
+                                    {% comment %}Si aucune valeur trouvée, afficher un champ vide{% endcomment %}
+                                    {% if not field_value_found and document %}
+                                        <div class="field-input-group {% if field.is_required %}required{% endif %}">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <label class="form-label fw-bold mb-0">
+                                                    {{ field.field_label }}
+                                                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                                                </label>
+                                                <small class="text-muted">
+                                                    <span class="field-preview">&#123;&#123;{{ field.field_name }}&#125;&#125;</span>
+                                                </small>
+                                            </div>
+
+                                            {% if field.field_type == 'textarea' %}
+                                                <textarea
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    rows="4"
+                                                    placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                                    {% if field.is_required %}required{% endif %}></textarea>
+                                            {% else %}
+                                                <input
+                                                    type="{% if field.field_type == 'email' %}email{% elif field.field_type == 'date' %}date{% elif field.field_type == 'number' %}number{% elif field.field_type == 'url' %}url{% else %}text{% endif %}"
+                                                    name="field_{{ field.id }}"
+                                                    id="field_{{ field.id }}"
+                                                    class="form-control"
+                                                    placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                                    {% if field.is_required %}required{% endif %}>
+                                            {% endif %}
                                         </div>
                                     {% endif %}
-                                </div>
+                                {% endwith %}
                             {% endfor %}
                         {% else %}
                             <div class="alert alert-info">
@@ -372,9 +509,7 @@
         </div>
     </form>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
 // JavaScript minimal sans animations - juste validation
 document.addEventListener('DOMContentLoaded', function() {

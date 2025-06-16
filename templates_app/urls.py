@@ -42,6 +42,7 @@ urlpatterns = [
     path('documents/<int:document_id>/export/html/', views.document_export_html, name='document_export_html'),
     path('documents/<int:document_id>/export/docx/', views.document_export_docx, name='document_export_docx'),
 
+
     # ===============================
     # CATÉGORIES (placeholders)
     # ===============================

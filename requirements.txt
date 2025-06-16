@@ -29,3 +29,7 @@ Pillow>=10.0.0
 # gunicorn>=21.0.0
 # whitenoise>=6.5.0
 # django-environ>=0.10.0
+
+reportlab>=4.0.0        # Pour l'export PDF
+python-docx>=0.8.11     # Pour l'export DOCX
+weasyprint>=60.0        # Alternative pour PDF avec CSS

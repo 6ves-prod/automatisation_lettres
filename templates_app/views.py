@@ -1,45 +1,105 @@
+# templates_app/views.py - Fichier complet avec exports fonctionnels
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse, Http404
+from django.http import HttpResponse, JsonResponse, Http404, FileResponse
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_protect
 from django.urls import reverse, NoReverseMatch
+from django.template.loader import render_to_string
 from .models import Template, Document, TemplateField, DocumentFieldValue, TemplateCategory
 from .forms import TemplateForm, DocumentForm, TemplateFieldForm, TemplateCategoryForm
 import re
 import logging
-from .forms import CustomUserCreationForm, CustomAuthenticationForm, SimpleSignupForm, SimpleLoginForm
+import io
+import os
+from datetime import timedelta
+from .forms import CustomUserCreationForm, CustomAuthenticationForm
+
+# Imports pour les exports
+# Imports pour PDF
+try:
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas
+
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+
+# Imports pour DOCX
+try:
+    from docx import Document as DocxDocument
+    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+
+    PYTHON_DOCX_AVAILABLE = True
+except ImportError:
+    PYTHON_DOCX_AVAILABLE = False
+
+# Alternative avec WeasyPrint
+try:
+    import weasyprint
+
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
 
 # Configuration du logging pour debug
 logger = logging.getLogger(__name__)
 
 
 # ===============================
+# VUE D'ACCUEIL
+# ===============================
+
+def home_view(request):
+    """Page d'accueil avec statistiques et gestion du tutoriel"""
+    context = {
+        'total_templates': Template.objects.filter(is_public=True).count(),
+        'total_users': Template.objects.values('created_by').distinct().count(),
+        'total_documents': Document.objects.count(),
+    }
+
+    if request.user.is_authenticated:
+        # Vérifier si c'est un nouvel utilisateur (inscrit dans les 5 dernières minutes)
+        five_minutes_ago = timezone.now() - timedelta(minutes=5)
+        is_new_user = request.user.date_joined > five_minutes_ago
+
+        context.update({
+            'user_templates': Template.objects.filter(created_by=request.user).count(),
+            'user_documents': Document.objects.filter(created_by=request.user).count(),
+            'recent_templates': Template.objects.filter(created_by=request.user).order_by('-updated_at')[:3],
+            'recent_documents': Document.objects.filter(created_by=request.user).order_by('-updated_at')[:3],
+            'is_new_user': is_new_user,
+        })
+
+    return render(request, 'home.html', context)
+
+
+# ===============================
 # VUES D'AUTHENTIFICATION
 # ===============================
 
-logger = logging.getLogger(__name__)
-
-
 def signup_view(request):
     """Vue d'inscription avec formulaire personnalisé"""
-
     logger.info(f"Signup view called with method: {request.method}")
 
     # Rediriger si déjà connecté
     if request.user.is_authenticated:
         messages.info(request, 'Vous êtes déjà connecté.')
-        return redirect('templates_app:template_list')
+        return redirect('home')
 
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
-
         logger.info(f"Form data received - username: {request.POST.get('username', 'N/A')}")
 
         if form.is_valid():
@@ -57,12 +117,12 @@ def signup_view(request):
                     f'Bienvenue {user.username} ! Votre compte a été créé avec succès.'
                 )
 
-                # Redirection sécurisée
+                # Redirection sécurisée avec tutoriel pour nouveaux utilisateurs
                 try:
-                    return redirect('templates_app:template_list')
+                    return redirect('home')  # Rediriger vers l'accueil avec tutoriel auto
                 except NoReverseMatch:
-                    logger.warning("templates_app:template_list URL not found, redirecting to home")
-                    return redirect('/')
+                    logger.warning("home URL not found, redirecting to templates")
+                    return redirect('templates_app:template_list')
 
             except Exception as e:
                 logger.error(f"Error creating user: {str(e)}")
@@ -85,7 +145,6 @@ def signup_view(request):
 
 def login_view(request):
     """Vue de connexion avec formulaire personnalisé"""
-
     logger.info(f"Login view called with method: {request.method}")
 
     # Rediriger si déjà connecté
@@ -95,7 +154,6 @@ def login_view(request):
 
     if request.method == 'POST':
         form = CustomAuthenticationForm(request, data=request.POST)
-
         logger.info(f"Login attempt for username: {request.POST.get('username', 'N/A')}")
 
         if form.is_valid():
@@ -111,15 +169,16 @@ def login_view(request):
 
                 messages.success(request, f'Bienvenue {user.username} !')
 
-                # Redirection vers la page demandée ou par défaut
+                # Redirection vers la page demandée ou accueil avec tutoriel
                 next_url = request.GET.get('next')
                 if next_url:
                     return redirect(next_url)
 
+                # Pour les connexions, rediriger vers les templates directement
                 try:
                     return redirect('templates_app:template_list')
                 except NoReverseMatch:
-                    return redirect('/')
+                    return redirect('home')
             else:
                 logger.warning(f"Authentication failed for username: {username}")
                 messages.error(request, 'Nom d\'utilisateur ou mot de passe incorrect.')
@@ -136,6 +195,8 @@ def login_view(request):
     }
 
     return render(request, 'registration/login.html', context)
+
+
 # ===============================
 # VUES DES TEMPLATES
 # ===============================
@@ -152,6 +213,7 @@ def template_list(request):
     # Filtres
     search = request.GET.get('search', '')
     category_id = request.GET.get('category', '')
+    visibility = request.GET.get('visibility', '')
 
     if search:
         templates = templates.filter(
@@ -161,6 +223,11 @@ def template_list(request):
 
     if category_id:
         templates = templates.filter(category_id=category_id)
+
+    if visibility == 'my':
+        templates = templates.filter(created_by=request.user)
+    elif visibility == 'public':
+        templates = templates.filter(is_public=True)
 
     # Pagination
     paginator = Paginator(templates, 12)
@@ -175,6 +242,7 @@ def template_list(request):
         'categories': categories,
         'search': search,
         'selected_category': category_id,
+        'selected_visibility': visibility,
     }
     return render(request, 'templates_app/template_list.html', context)
 
@@ -184,7 +252,7 @@ def template_detail(request, template_id):
     template = get_object_or_404(Template, id=template_id)
 
     # Vérifier les permissions
-    if not template.is_public and template.created_by != request.user:
+    if not template.is_public and (not request.user.is_authenticated or template.created_by != request.user):
         messages.error(request, "Vous n'avez pas accès à ce template.")
         return redirect('templates_app:template_list')
 
@@ -282,22 +350,7 @@ def template_preview(request, template_id):
     # Créer des données d'exemple pour l'aperçu
     preview_data = {}
     for field in fields:
-        if field.field_type == 'text':
-            preview_data[field.field_name] = f"[Exemple de {field.field_label.lower()}]"
-        elif field.field_type == 'email':
-            preview_data[field.field_name] = "exemple@email.com"
-        elif field.field_type == 'date':
-            preview_data[field.field_name] = "01/01/2024"
-        elif field.field_type == 'number':
-            preview_data[field.field_name] = "100"
-        elif field.field_type == 'url':
-            preview_data[field.field_name] = "https://exemple.com"
-        elif field.field_type == 'textarea':
-            preview_data[field.field_name] = f"[Texte d'exemple pour {field.field_label.lower()}]"
-        elif field.field_type == 'select':
-            preview_data[field.field_name] = "[Option sélectionnée]"
-        else:
-            preview_data[field.field_name] = f"[{field.field_label}]"
+        preview_data[field.field_name] = generate_sample_data(field.field_name)
 
     # Remplacer les placeholders dans le contenu
     rendered_content = template.content
@@ -353,7 +406,7 @@ def document_create(request, template_id):
                     if field_value or field.is_required:
                         DocumentFieldValue.objects.create(
                             document=document,
-                            template_field=field,  # CORRECTION ICI
+                            template_field=field,
                             value=field_value
                         )
 
@@ -375,7 +428,7 @@ def document_create(request, template_id):
         'form': form,
         'template': template,
         'fields': fields,
-        'document': None,  # Pas de document existant pour création
+        'document': None,
     }
     return render(request, 'templates_app/document_form.html', context)
 
@@ -403,7 +456,6 @@ def document_edit(request, document_id):
                 document.save()
 
                 # Mettre à jour les valeurs des champs
-                # Supprimer les anciennes valeurs
                 document.field_values.all().delete()
 
                 # Créer les nouvelles valeurs
@@ -414,7 +466,7 @@ def document_edit(request, document_id):
                     if field_value or field.is_required:
                         DocumentFieldValue.objects.create(
                             document=document,
-                            template_field=field,  # CORRECTION ICI
+                            template_field=field,
                             value=field_value
                         )
 
@@ -470,8 +522,8 @@ def document_detail(request, document_id):
 
 @login_required
 def document_list(request):
-    """Liste des documents de l'utilisateur avec filtres"""
-    documents = Document.objects.filter(created_by=request.user).order_by('-updated_at')
+    """Liste des documents de l'utilisateur avec filtres et statistiques"""
+    documents = Document.objects.filter(created_by=request.user).select_related('template').order_by('-updated_at')
 
     # Filtres
     search = request.GET.get('search', '')
@@ -492,8 +544,17 @@ def document_list(request):
     elif selected_status == 'draft':
         documents = documents.filter(is_completed=False)
 
+    # Calculs des statistiques
+    all_documents = Document.objects.filter(created_by=request.user)
+    completed_count = all_documents.filter(is_completed=True).count()
+    draft_count = all_documents.filter(is_completed=False).count()
+
+    # Documents créés cette semaine
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_count = all_documents.filter(created_at__gte=week_ago).count()
+
     # Pagination
-    paginator = Paginator(documents, 10)
+    paginator = Paginator(documents, 12)
     page_number = request.GET.get('page')
     documents = paginator.get_page(page_number)
 
@@ -508,12 +569,389 @@ def document_list(request):
         'search': search,
         'selected_template': selected_template,
         'selected_status': selected_status,
+        'completed_count': completed_count,
+        'draft_count': draft_count,
+        'recent_count': recent_count,
     }
     return render(request, 'templates_app/document_list.html', context)
 
 
+@login_required
+def document_delete(request, document_id):
+    """Supprimer un document avec confirmation"""
+    document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    if request.method == 'POST':
+        document_title = document.title
+        document.delete()
+        messages.success(request, f'Le document "{document_title}" a été supprimé avec succès.')
+        return redirect('templates_app:document_list')
+
+    context = {
+        'document': document,
+    }
+    return render(request, 'templates_app/document_confirm_delete.html', context)
+
+
 # ===============================
-# VUES DE PLACEHOLDERS (pour éviter les erreurs)
+# VUES D'EXPORT - FONCTIONNELLES
+# ===============================
+
+@login_required
+def document_export_pdf(request, document_id):
+    """Export PDF avec ReportLab ou WeasyPrint"""
+    document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    if not REPORTLAB_AVAILABLE and not WEASYPRINT_AVAILABLE:
+        messages.error(request,
+                       "Les bibliothèques PDF ne sont pas installées. Installez reportlab ou weasyprint avec: pip install reportlab")
+        return redirect('templates_app:document_detail', document_id=document_id)
+
+    try:
+        # Récupérer les données du document
+        template = document.template
+        field_values = {}
+
+        for field_value in document.field_values.all():
+            field_name = field_value.template_field.field_name
+            field_values[field_name] = field_value.value
+
+        # Remplacer les placeholders
+        rendered_content = template.content
+        for field_name, field_value in field_values.items():
+            placeholder = f'{{{{{field_name}}}}}'
+            rendered_content = rendered_content.replace(placeholder, str(field_value))
+
+        if WEASYPRINT_AVAILABLE:
+            return export_pdf_weasyprint(document, rendered_content)
+        else:
+            return export_pdf_reportlab(document, rendered_content)
+
+    except Exception as e:
+        messages.error(request, f'Erreur lors de l\'export PDF : {str(e)}')
+        return redirect('templates_app:document_detail', document_id=document_id)
+
+
+@login_required
+def document_export_docx(request, document_id):
+    """Export DOCX avec python-docx"""
+    document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    if not PYTHON_DOCX_AVAILABLE:
+        messages.error(request,
+                       "La bibliothèque python-docx n'est pas installée. Installez avec: pip install python-docx")
+        return redirect('templates_app:document_detail', document_id=document_id)
+
+    try:
+        # Récupérer les données du document
+        template = document.template
+        field_values = {}
+
+        for field_value in document.field_values.all():
+            field_name = field_value.template_field.field_name
+            field_values[field_name] = field_value.value
+
+        # Remplacer les placeholders
+        rendered_content = template.content
+        for field_name, field_value in field_values.items():
+            placeholder = f'{{{{{field_name}}}}}'
+            rendered_content = rendered_content.replace(placeholder, str(field_value))
+
+        # Créer le document Word
+        doc = DocxDocument()
+
+        # Configurer les styles
+        styles = doc.styles
+
+        # Style normal
+        normal_style = styles['Normal']
+        normal_style.font.size = Pt(12)
+        normal_style.font.name = 'Times New Roman'
+        normal_style.paragraph_format.line_spacing = 1.5
+
+        # Ajouter le titre
+        title_para = doc.add_heading(document.title, 0)
+        title_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+        # Ajouter la date
+        date_para = doc.add_paragraph(f"Généré le {timezone.now().strftime('%d/%m/%Y à %H:%M')}")
+        date_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+        # Ajouter une ligne vide
+        doc.add_paragraph("")
+
+        # Ajouter le contenu principal
+        lines = rendered_content.split('\n')
+        for line in lines:
+            if line.strip():
+                doc.add_paragraph(line.strip())
+            else:
+                doc.add_paragraph("")
+
+        # Ajouter le footer
+        doc.add_paragraph("")
+        footer_para = doc.add_paragraph(f"Document généré par DocBuilder - {document.template.title}")
+        footer_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+        # Sauvegarder dans un buffer
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        # Créer la réponse
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        filename = f"{document.title.replace(' ', '_')}.docx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
+    except Exception as e:
+        messages.error(request, f'Erreur lors de l\'export DOCX : {str(e)}')
+        return redirect('templates_app:document_detail', document_id=document_id)
+
+
+@login_required
+def document_export_html(request, document_id):
+    """Export HTML amélioré"""
+    document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    try:
+        # Récupérer les données du document
+        template = document.template
+        field_values = {}
+
+        for field_value in document.field_values.all():
+            field_name = field_value.template_field.field_name
+            field_values[field_name] = field_value.value
+
+        # Remplacer les placeholders
+        rendered_content = template.content
+        for field_name, field_value in field_values.items():
+            placeholder = f'{{{{{field_name}}}}}'
+            rendered_content = rendered_content.replace(placeholder, str(field_value))
+
+        # Créer le HTML complet
+        html_content = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{document.title}</title>
+    <style>
+        body {{
+            font-family: 'Times New Roman', serif;
+            margin: 2cm;
+            line-height: 1.6;
+            color: #333;
+            background: white;
+        }}
+        .document-header {{
+            text-align: center;
+            margin-bottom: 2em;
+            padding-bottom: 1em;
+            border-bottom: 2px solid #3498db;
+        }}
+        .document-header h1 {{
+            color: #2c3e50;
+            margin-bottom: 0.5em;
+            font-size: 2em;
+        }}
+        .document-content {{
+            margin: 2em 0;
+            text-align: justify;
+        }}
+        .document-footer {{
+            margin-top: 3em;
+            padding-top: 1em;
+            border-top: 1px solid #bdc3c7;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            text-align: center;
+        }}
+        h1, h2, h3 {{ color: #2c3e50; }}
+        p {{ margin-bottom: 1em; }}
+
+        @media print {{
+            body {{ margin: 1cm; }}
+            .no-print {{ display: none; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="document-header">
+        <h1>{document.title}</h1>
+        <p><em>Généré le {timezone.now().strftime('%d/%m/%Y à %H:%M')}</em></p>
+    </div>
+
+    <div class="document-content">
+        {rendered_content.replace(chr(10), '<br>')}
+    </div>
+
+    <div class="document-footer">
+        <p><strong>Document généré par DocBuilder</strong></p>
+        <p>Template source : {document.template.title}</p>
+        <p class="no-print">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Imprimer ce document
+            </button>
+        </p>
+    </div>
+</body>
+</html>"""
+
+        # Créer la réponse
+        response = HttpResponse(html_content, content_type='text/html')
+        filename = f"{document.title.replace(' ', '_')}.html"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
+    except Exception as e:
+        messages.error(request, f'Erreur lors de l\'export HTML : {str(e)}')
+        return redirect('templates_app:document_detail', document_id=document_id)
+
+
+# ===============================
+# FONCTIONS UTILITAIRES POUR EXPORTS
+# ===============================
+
+def export_pdf_weasyprint(document, content):
+    """Export PDF avec WeasyPrint (recommandé pour le CSS)"""
+    # Créer le HTML avec styles
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            @page {{
+                margin: 2cm;
+                size: A4;
+            }}
+            body {{
+                font-family: 'Times New Roman', serif;
+                font-size: 12pt;
+                line-height: 1.6;
+                color: #333;
+            }}
+            h1, h2, h3 {{
+                color: #2c3e50;
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }}
+            h1 {{ font-size: 18pt; }}
+            h2 {{ font-size: 16pt; }}
+            h3 {{ font-size: 14pt; }}
+            p {{ margin-bottom: 1em; }}
+            .header {{
+                text-align: center;
+                margin-bottom: 2em;
+                padding-bottom: 1em;
+                border-bottom: 2px solid #3498db;
+            }}
+            .footer {{
+                margin-top: 3em;
+                padding-top: 1em;
+                border-top: 1px solid #bdc3c7;
+                font-size: 10pt;
+                color: #7f8c8d;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>{document.title}</h1>
+            <p>Généré le {timezone.now().strftime('%d/%m/%Y à %H:%M')}</p>
+        </div>
+
+        <div class="content">
+            {content.replace(chr(10), '<br>')}
+        </div>
+
+        <div class="footer">
+            <p>Document généré par DocBuilder - {document.template.title}</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Générer le PDF
+    pdf_file = weasyprint.HTML(string=html_content).write_pdf()
+
+    # Créer la réponse HTTP
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    filename = f"{document.title.replace(' ', '_')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response
+
+
+def export_pdf_reportlab(document, content):
+    """Export PDF avec ReportLab (plus basique)"""
+    buffer = io.BytesIO()
+
+    # Créer le document PDF
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1 * inch)
+
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Title'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=1  # Centré
+    )
+
+    normal_style = styles['Normal']
+    normal_style.fontSize = 12
+    normal_style.leading = 18
+
+    # Contenu
+    story = []
+
+    # Titre
+    title = Paragraph(document.title, title_style)
+    story.append(title)
+
+    # Date
+    date_para = Paragraph(f"Généré le {timezone.now().strftime('%d/%m/%Y à %H:%M')}", styles['Normal'])
+    story.append(date_para)
+    story.append(Spacer(1, 20))
+
+    # Contenu principal (diviser par lignes)
+    lines = content.split('\n')
+    for line in lines:
+        if line.strip():
+            para = Paragraph(line.strip(), normal_style)
+            story.append(para)
+        else:
+            story.append(Spacer(1, 12))
+
+    # Footer
+    story.append(Spacer(1, 30))
+    footer = Paragraph(f"Document généré par DocBuilder - {document.template.title}", styles['Normal'])
+    story.append(footer)
+
+    # Construire le PDF
+    doc.build(story)
+
+    # Réponse
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    filename = f"{document.title.replace(' ', '_')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response
+
+
+# ===============================
+# VUES PLACEHOLDER (fonctionnalités futures)
 # ===============================
 
 @login_required
@@ -559,35 +997,6 @@ def document_duplicate(request, document_id):
 
 
 @login_required
-def document_delete(request, document_id):
-    """Placeholder pour supprimer un document"""
-    messages.info(request, "Fonction de suppression en cours de développement.")
-    return redirect('templates_app:document_detail', document_id=document_id)
-
-
-@login_required
-def document_export_html(request, document_id):
-    """Export HTML basique"""
-    document = get_object_or_404(Document, id=document_id, created_by=request.user)
-    messages.info(request, "Export HTML en cours de développement.")
-    return redirect('templates_app:document_detail', document_id=document_id)
-
-
-@login_required
-def document_export_pdf(request, document_id):
-    """Placeholder pour export PDF"""
-    messages.info(request, "Export PDF en cours de développement.")
-    return redirect('templates_app:document_detail', document_id=document_id)
-
-
-@login_required
-def document_export_docx(request, document_id):
-    """Placeholder pour export DOCX"""
-    messages.info(request, "Export DOCX en cours de développement.")
-    return redirect('templates_app:document_detail', document_id=document_id)
-
-
-@login_required
 def template_export(request, template_id):
     """Placeholder pour export template"""
     messages.info(request, "Export de template en cours de développement.")
@@ -626,35 +1035,106 @@ def category_delete(request, category_id):
 # FONCTIONS UTILITAIRES
 # ===============================
 
-def create_fields_from_content(template):
-    """Créer automatiquement les champs à partir du contenu du template"""
-    if not template.content:
-        return
+def extract_fields_from_content(content):
+    """Extraire les champs dynamiques du contenu du template"""
+    if not content:
+        return []
 
     # Expression régulière pour trouver les placeholders {{field_name}}
     pattern = r'\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}'
-    matches = re.findall(pattern, template.content)
-
-    if not matches:
-        return
+    matches = re.findall(pattern, content)
 
     # Supprimer les doublons et trier
     unique_fields = list(set(matches))
     unique_fields.sort()
 
+    return unique_fields
+
+
+def generate_sample_data(field_name):
+    """Générer des données d'exemple pour un champ"""
+    samples = {
+        'nom_client': 'Jean Dupont',
+        'nom_entreprise': 'ACME Corporation',
+        'adresse_entreprise': '123 Rue de la Paix, 75001 Paris',
+        'email': 'contact@example.com',
+        'telephone': '01 23 45 67 89',
+        'date_aujourd_hui': timezone.now().strftime('%d/%m/%Y'),
+        'date_debut': '01/01/2024',
+        'salaire': '3 500 €',
+        'poste': 'Développeur Full-Stack',
+        'montant_total': '1 250,00 €',
+        'numero_reference': 'REF-2024-001',
+        'ville': 'Paris',
+        'date': timezone.now().strftime('%d/%m/%Y'),
+    }
+
+    # Essayer de deviner le type de données basé sur le nom du champ
+    field_lower = field_name.lower()
+
+    if 'email' in field_lower:
+        return 'contact@example.com'
+    elif 'date' in field_lower:
+        return timezone.now().strftime('%d/%m/%Y')
+    elif 'nom' in field_lower and 'client' in field_lower:
+        return 'Jean Dupont'
+    elif 'nom' in field_lower and 'entreprise' in field_lower:
+        return 'ACME Corporation'
+    elif 'adresse' in field_lower:
+        return '123 Rue de la Paix, 75001 Paris'
+    elif 'telephone' in field_lower or 'tel' in field_lower:
+        return '01 23 45 67 89'
+    elif 'montant' in field_lower or 'prix' in field_lower:
+        return '1 250,00 €'
+    elif 'numero' in field_lower or 'ref' in field_lower:
+        return 'REF-2024-001'
+    elif 'ville' in field_lower:
+        return 'Paris'
+    else:
+        return samples.get(field_name, f'[Exemple pour {field_name.replace("_", " ")}]')
+
+
+def create_fields_from_content(template):
+    """Créer automatiquement les champs à partir du contenu du template"""
+    if not template.content:
+        return
+
+    # Extraire les champs du contenu
+    field_names = extract_fields_from_content(template.content)
+
+    if not field_names:
+        return
+
     # Créer les champs qui n'existent pas encore
     existing_fields = set(template.fields.values_list('field_name', flat=True))
 
-    for i, field_name in enumerate(unique_fields):
+    for i, field_name in enumerate(field_names):
         if field_name not in existing_fields:
             # Créer un libellé lisible à partir du nom du champ
             field_label = field_name.replace('_', ' ').title()
+
+            # Déterminer le type de champ basé sur le nom
+            field_type = 'text'  # Par défaut
+            if 'email' in field_name.lower():
+                field_type = 'email'
+            elif 'date' in field_name.lower():
+                field_type = 'date'
+            elif 'description' in field_name.lower() or 'commentaire' in field_name.lower():
+                field_type = 'textarea'
+            elif 'montant' in field_name.lower() or 'prix' in field_name.lower() or 'salaire' in field_name.lower():
+                field_type = 'number'
+
+            # Déterminer si le champ est requis
+            is_required = field_name.lower() in [
+                'nom_client', 'nom_entreprise', 'email', 'date_debut', 'montant_total'
+            ]
 
             TemplateField.objects.create(
                 template=template,
                 field_name=field_name,
                 field_label=field_label,
-                field_type='text',  # Par défaut
-                is_required=False,
-                order=i * 10
+                field_type=field_type,
+                is_required=is_required,
+                order=i * 10,
+                placeholder_text=f'Entrez {field_label.lower()}'
             )
