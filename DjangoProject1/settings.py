@@ -161,9 +161,12 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
 # Configuration d'authentification
-LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/templates/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+# Ajoutez/modifiez ces lignes dans votre settings.py
+
+# Configuration d'authentification - NOUVELLES URLS
+LOGIN_URL = '/login/'                           # Pointe vers notre vue personnalisée
+LOGIN_REDIRECT_URL = '/templates/'              # Après connexion
+LOGOUT_REDIRECT_URL = '/login/'                 # Après déconnexion
 
 # Configuration des messages
 from django.contrib.messages import constants as messages

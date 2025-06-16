@@ -1,360 +1,263 @@
-// JavaScript principal pour DocBuilder
+// static/js/main.js
+// Fichier JavaScript principal pour DocBuilder
+
+// Attendre que le DOM soit chargé
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialisation des tooltips Bootstrap
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    console.log('Main.js loaded');
 
-    // Initialisation des popovers Bootstrap
-    var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-    var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
-        return new bootstrap.Popover(popoverTriggerEl);
-    });
+    // Initialisation des composants
+    initializeComponents();
 
-    // Animation des cartes au scroll
-    initScrollAnimations();
+    // Gestionnaires d'événements
+    setupEventHandlers();
 
-    // Initialisation des fonctionnalités communes
-    initCommonFeatures();
+    // Animations personnalisées
+    setupAnimations();
 });
 
-// Animations au scroll
-function initScrollAnimations() {
-    const animateElements = document.querySelectorAll('.template-card, .card');
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('animate-in');
-            }
-        });
-    }, {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
+/**
+ * Initialiser les composants Bootstrap et autres
+ */
+function initializeComponents() {
+    // Initialiser tous les tooltips
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(tooltip => {
+        new bootstrap.Tooltip(tooltip);
     });
 
-    animateElements.forEach(el => observer.observe(el));
+    // Initialiser tous les popovers
+    const popovers = document.querySelectorAll('[data-bs-toggle="popover"]');
+    popovers.forEach(popover => {
+        new bootstrap.Popover(popover);
+    });
+
+    // Initialiser les modals
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        new bootstrap.Modal(modal);
+    });
+
+    console.log('Bootstrap components initialized');
 }
 
-// Fonctionnalités communes
-function initCommonFeatures() {
-    // Auto-dismiss des alertes après 5 secondes
-    const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-    alerts.forEach(alert => {
-        setTimeout(() => {
-            const bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
-        }, 5000);
+/**
+ * Configurer les gestionnaires d'événements
+ */
+function setupEventHandlers() {
+    // Gestionnaire pour les formulaires avec validation
+    const forms = document.querySelectorAll('form[data-validate="true"]');
+    forms.forEach(form => {
+        form.addEventListener('submit', handleFormSubmit);
     });
 
-    // Confirmation de suppression
-    const deleteButtons = document.querySelectorAll('[data-confirm-delete]');
+    // Gestionnaire pour les boutons de suppression avec confirmation
+    const deleteButtons = document.querySelectorAll('[data-action="delete"]');
     deleteButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            const message = this.getAttribute('data-confirm-delete') || 'Êtes-vous sûr de vouloir supprimer cet élément ?';
-            if (!confirm(message)) {
-                e.preventDefault();
+        button.addEventListener('click', handleDeleteConfirmation);
+    });
+
+    // Gestionnaire pour les messages d'alerte auto-dismiss
+    setupAlertAutoDismiss();
+
+    console.log('Event handlers set up');
+}
+
+/**
+ * Configurer les animations personnalisées
+ */
+function setupAnimations() {
+    // Animation fade-in pour les nouveaux éléments
+    const fadeElements = document.querySelectorAll('.fade-in');
+    fadeElements.forEach((element, index) => {
+        element.style.opacity = '0';
+        element.style.transform = 'translateY(20px)';
+
+        setTimeout(() => {
+            element.style.transition = 'all 0.5s ease';
+            element.style.opacity = '1';
+            element.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+
+    // Animation pour les cartes au survol
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+            this.style.transition = 'transform 0.3s ease';
+            this.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
+        });
+
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '';
+        });
+    });
+
+    console.log('Animations set up');
+}
+
+/**
+ * Gérer la soumission des formulaires avec validation
+ */
+function handleFormSubmit(event) {
+    const form = event.target;
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (submitButton) {
+        // Désactiver le bouton et afficher un spinner
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Traitement...';
+
+        // Réactiver le bouton après 3 secondes si nécessaire
+        setTimeout(() => {
+            if (submitButton.disabled) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = submitButton.getAttribute('data-original-text') || 'Envoyer';
             }
-        });
-    });
+        }, 3000);
+    }
+}
 
-    // Loading states pour les boutons
-    const submitButtons = document.querySelectorAll('button[type="submit"], .btn-submit');
-    submitButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            if (this.form && this.form.checkValidity()) {
-                showButtonLoading(this);
+/**
+ * Gérer les confirmations de suppression
+ */
+function handleDeleteConfirmation(event) {
+    event.preventDefault();
+
+    const button = event.target.closest('[data-action="delete"]');
+    const itemName = button.getAttribute('data-item-name') || 'cet élément';
+
+    if (confirm(`Êtes-vous sûr de vouloir supprimer ${itemName} ? Cette action est irréversible.`)) {
+        // Si confirmation, rediriger vers l'URL de suppression
+        const deleteUrl = button.getAttribute('data-delete-url') || button.href;
+        if (deleteUrl) {
+            window.location.href = deleteUrl;
+        }
+    }
+}
+
+/**
+ * Configuration de l'auto-dismiss des alertes
+ */
+function setupAlertAutoDismiss() {
+    const alerts = document.querySelectorAll('.alert[data-auto-dismiss]');
+
+    alerts.forEach(alert => {
+        const delay = parseInt(alert.getAttribute('data-auto-dismiss')) || 5000;
+
+        setTimeout(() => {
+            const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            if (bsAlert && alert.parentNode) {
+                bsAlert.close();
             }
-        });
-    });
-}
-
-// Afficher l'état de chargement d'un bouton
-function showButtonLoading(button, text = 'Chargement...') {
-    const originalText = button.innerHTML;
-    button.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>${text}`;
-    button.disabled = true;
-
-    // Restaurer après 10 secondes maximum
-    setTimeout(() => {
-        button.innerHTML = originalText;
-        button.disabled = false;
-    }, 10000);
-}
-
-// Utilitaires pour les notifications
-window.showToast = function(message, type = 'info', duration = 4000) {
-    const toastContainer = getOrCreateToastContainer();
-    const toast = createToast(message, type);
-    toastContainer.appendChild(toast);
-
-    // Afficher le toast
-    const bsToast = new bootstrap.Toast(toast, { delay: duration });
-    bsToast.show();
-
-    // Nettoyer après fermeture
-    toast.addEventListener('hidden.bs.toast', () => {
-        toast.remove();
-    });
-};
-
-function getOrCreateToastContainer() {
-    let container = document.getElementById('toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
-        container.className = 'toast-container position-fixed top-0 end-0 p-3';
-        container.style.zIndex = '9999';
-        document.body.appendChild(container);
-    }
-    return container;
-}
-
-function createToast(message, type) {
-    const colors = {
-        success: 'text-bg-success',
-        error: 'text-bg-danger',
-        warning: 'text-bg-warning',
-        info: 'text-bg-info'
-    };
-
-    const icons = {
-        success: 'fa-check-circle',
-        error: 'fa-exclamation-triangle',
-        warning: 'fa-exclamation-circle',
-        info: 'fa-info-circle'
-    };
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${colors[type] || colors.info}`;
-    toast.setAttribute('role', 'alert');
-
-    toast.innerHTML = `
-        <div class="toast-body d-flex align-items-center">
-            <i class="fas ${icons[type] || icons.info} me-2"></i>
-            <span class="flex-grow-1">${message}</span>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-    `;
-
-    return toast;
-}
-
-// Utilitaire pour copier du texte
-window.copyToClipboard = function(text, successMessage = 'Copié dans le presse-papiers') {
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast(successMessage, 'success');
-        }).catch(() => {
-            fallbackCopyTextToClipboard(text, successMessage);
-        });
-    } else {
-        fallbackCopyTextToClipboard(text, successMessage);
-    }
-};
-
-function fallbackCopyTextToClipboard(text, successMessage) {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-
-    try {
-        document.execCommand('copy');
-        showToast(successMessage, 'success');
-    } catch (err) {
-        showToast('Impossible de copier le texte', 'error');
-    }
-
-    document.body.removeChild(textArea);
-}
-
-// Gestionnaire de recherche avec débounce
-window.createSearchHandler = function(searchInput, callback, delay = 300) {
-    let timeout;
-
-    searchInput.addEventListener('input', function() {
-        const query = this.value;
-
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
-            callback(query);
         }, delay);
     });
-};
+}
 
-// Utilitaire pour formater les dates
-window.formatDate = function(date, locale = 'fr-FR') {
-    if (typeof date === 'string') {
-        date = new Date(date);
-    }
+/**
+ * Fonction utilitaire pour afficher des notifications toast
+ */
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
 
-    return date.toLocaleDateString(locale, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-};
-
-// Utilitaire pour formater les dates relatives
-window.formatRelativeDate = function(date) {
-    if (typeof date === 'string') {
-        date = new Date(date);
-    }
-
-    const now = new Date();
-    const diff = now - date;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 7) {
-        return formatDate(date);
-    } else if (days > 0) {
-        return `Il y a ${days} jour${days > 1 ? 's' : ''}`;
-    } else if (hours > 0) {
-        return `Il y a ${hours} heure${hours > 1 ? 's' : ''}`;
-    } else if (minutes > 0) {
-        return `Il y a ${minutes} minute${minutes > 1 ? 's' : ''}`;
-    } else {
-        return 'À l\'instant';
-    }
-};
-
-// Gestionnaire d'upload de fichiers avec drag & drop
-window.createFileUploader = function(dropZone, fileInput, options = {}) {
-    const defaultOptions = {
-        accept: '*/*',
-        maxSize: 10 * 1024 * 1024, // 10MB
-        multiple: false,
-        onUpload: () => {},
-        onError: () => {}
-    };
-
-    const config = { ...defaultOptions, ...options };
-
-    // Drag & Drop
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-
-        const files = Array.from(e.dataTransfer.files);
-        handleFiles(files);
-    });
-
-    // Click to upload
-    dropZone.addEventListener('click', () => {
-        fileInput.click();
-    });
-
-    fileInput.addEventListener('change', (e) => {
-        const files = Array.from(e.target.files);
-        handleFiles(files);
-    });
-
-    function handleFiles(files) {
-        if (!config.multiple) {
-            files = files.slice(0, 1);
-        }
-
-        files.forEach(file => {
-            if (file.size > config.maxSize) {
-                config.onError(`Le fichier ${file.name} est trop volumineux.`);
-                return;
-            }
-
-            config.onUpload(file);
-        });
-    }
-};
-
-// Gestionnaire de thème sombre/clair
-window.initThemeToggle = function() {
-    const themeToggle = document.getElementById('theme-toggle');
-    const currentTheme = localStorage.getItem('theme') || 'light';
-
-    document.documentElement.setAttribute('data-theme', currentTheme);
-
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-
-            showToast(`Thème ${newTheme === 'dark' ? 'sombre' : 'clair'} activé`, 'info');
-        });
-    }
-};
-
-// Gestionnaire de confirmation modale
-window.showConfirmModal = function(title, message, onConfirm, onCancel = null) {
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.tabIndex = -1;
-
-    modal.innerHTML = `
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">${title}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>${message}</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="button" class="btn btn-primary" id="confirm-btn">Confirmer</button>
-                </div>
+    const toastId = 'toast-' + Date.now();
+    const toastHTML = `
+        <div class="toast" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <i class="fas fa-${getToastIcon(type)} me-2 text-${type}"></i>
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
             </div>
         </div>
     `;
 
-    document.body.appendChild(modal);
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
 
-    const bsModal = new bootstrap.Modal(modal);
-    const confirmBtn = modal.querySelector('#confirm-btn');
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
 
-    confirmBtn.addEventListener('click', () => {
-        bsModal.hide();
-        if (onConfirm) onConfirm();
+    // Supprimer l'élément après qu'il soit caché
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
     });
+}
 
-    modal.addEventListener('hidden.bs.modal', () => {
-        modal.remove();
-        if (onCancel) onCancel();
-    });
+/**
+ * Créer le conteneur de toast s'il n'existe pas
+ */
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
 
-    bsModal.show();
-};
+/**
+ * Obtenir l'icône appropriée pour le type de toast
+ */
+function getToastIcon(type) {
+    const icons = {
+        'success': 'check-circle',
+        'error': 'exclamation-triangle',
+        'warning': 'exclamation-circle',
+        'info': 'info-circle'
+    };
+    return icons[type] || 'info-circle';
+}
 
-// Gestion des erreurs globales
-window.addEventListener('error', function(e) {
-    console.error('Erreur JavaScript:', e.error);
-    showToast('Une erreur inattendue s\'est produite', 'error');
-});
+/**
+ * Fonction utilitaire pour faire des requêtes AJAX
+ */
+function makeAjaxRequest(url, options = {}) {
+    const defaultOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    };
 
-// Gestion des erreurs de réseau
-window.addEventListener('online', () => {
-    showToast('Connexion rétablie', 'success');
-});
+    const finalOptions = { ...defaultOptions, ...options };
 
-window.addEventListener('offline', () => {
-    showToast('Connexion perdue', 'warning');
-});
+    return fetch(url, finalOptions)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .catch(error => {
+            console.error('AJAX request failed:', error);
+            showToast('Erreur de connexion au serveur', 'error');
+            throw error;
+        });
+}
+
+/**
+ * Fonction utilitaire pour obtenir le token CSRF
+ */
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Rendre certaines fonctions disponibles globalement
+window.showToast = showToast;
+window.makeAjaxRequest = makeAjaxRequest;

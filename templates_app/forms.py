@@ -1,7 +1,146 @@
 from django import forms
 from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from .models import Template, TemplateField, Document, TemplateCategory
 
+
+class CustomUserCreationForm(UserCreationForm):
+    """Formulaire d'inscription personnalisé"""
+
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Votre adresse email'
+        })
+    )
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "password1", "password2")
+        widgets = {
+            'username': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Choisissez un nom d\'utilisateur',
+                'maxlength': '150'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Personnaliser les widgets pour les champs de mot de passe
+        self.fields['password1'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Choisissez un mot de passe sécurisé'
+        })
+        self.fields['password2'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Répétez votre mot de passe'
+        })
+
+        # Personnaliser les labels
+        self.fields['username'].label = 'Nom d\'utilisateur'
+        self.fields['email'].label = 'Adresse email'
+        self.fields['password1'].label = 'Mot de passe'
+        self.fields['password2'].label = 'Confirmer le mot de passe'
+
+        # Tous les champs sont requis
+        for field_name, field in self.fields.items():
+            field.required = True
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        if commit:
+            user.save()
+        return user
+
+
+class CustomAuthenticationForm(AuthenticationForm):
+    """Formulaire de connexion personnalisé"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Personnaliser les widgets
+        self.fields['username'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Votre nom d\'utilisateur'
+        })
+        self.fields['password'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Votre mot de passe'
+        })
+
+        # Personnaliser les labels
+        self.fields['username'].label = 'Nom d\'utilisateur'
+        self.fields['password'].label = 'Mot de passe'
+# Alternative : Formulaires entièrement personnalisés sans héritage Django
+
+class SimpleSignupForm(forms.Form):
+    """Formulaire d'inscription simple sans héritage Django"""
+
+    username = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Choisissez un nom d\'utilisateur'
+        }),
+        label='Nom d\'utilisateur'
+    )
+
+    password1 = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Choisissez un mot de passe sécurisé'
+        }),
+        label='Mot de passe'
+    )
+
+    password2 = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Répétez votre mot de passe'
+        }),
+        label='Confirmer le mot de passe'
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Ce nom d'utilisateur existe déjà.")
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get('password1')
+        password2 = cleaned_data.get('password2')
+
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError("Les mots de passe ne correspondent pas.")
+
+        return cleaned_data
+
+
+class SimpleLoginForm(forms.Form):
+    """Formulaire de connexion simple"""
+
+    username = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Votre nom d\'utilisateur'
+        }),
+        label='Nom d\'utilisateur'
+    )
+
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Votre mot de passe'
+        }),
+        label='Mot de passe'
+    )
 
 class TemplateForm(forms.ModelForm):
     """Formulaire pour créer/modifier un template"""

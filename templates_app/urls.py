@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, auth_views
+from . import views  # Plus besoin d'importer auth_views
 
 app_name = 'templates_app'
 
@@ -7,7 +7,8 @@ urlpatterns = [
     # ===============================
     # AUTHENTIFICATION
     # ===============================
-    path('signup/', auth_views.signup_view, name='signup'),
+    path('login/', views.login_view, name='login'),        # Vue login personnalisée
+    path('signup/', views.signup_view, name='signup'),     # Vue signup personnalisée
 
     # ===============================
     # TEMPLATES (avec vue par défaut)

@@ -12,7 +12,7 @@ def home_redirect(request):
     if request.user.is_authenticated:
         return redirect('templates_app:template_list')
     else:
-        return redirect('login')
+        return redirect('templates_app:login')  # Changé pour pointer vers notre login
 
 
 def test_view(request):
@@ -22,8 +22,9 @@ def test_view(request):
     <p>Liens de test :</p>
     <ul>
         <li><a href="/signup/">Inscription</a></li>
-        <li><a href="/accounts/login/">Connexion</a></li>
+        <li><a href="/login/">Connexion</a></li>
         <li><a href="/admin/">Administration</a></li>
+        <li><a href="/templates/">Templates</a></li>
     </ul>
     """)
 
@@ -38,18 +39,12 @@ urlpatterns = [
     # Page d'accueil
     path('', home_redirect, name='home'),
 
-    # Authentification Django
-    path('accounts/login/', auth_views.LoginView.as_view(
-        template_name='registration/login.html',
-        redirect_authenticated_user=True,
-        extra_context={'title': 'Connexion - DocBuilder'}
-    ), name='login'),
-
+    # Logout (garde la vue Django intégrée)
     path('accounts/logout/', auth_views.LogoutView.as_view(
-        next_page='login'
+        next_page='templates_app:login'  # Redirige vers notre login après logout
     ), name='logout'),
 
-    # URLs de l'application (incluant signup)
+    # URLs de l'application (incluant login et signup personnalisés)
     path('', include('templates_app.urls')),
 ]
 

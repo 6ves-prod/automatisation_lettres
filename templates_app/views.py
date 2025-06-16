@@ -1,15 +1,141 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, authenticate
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse, Http404
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_protect
+from django.urls import reverse, NoReverseMatch
 from .models import Template, Document, TemplateField, DocumentFieldValue, TemplateCategory
 from .forms import TemplateForm, DocumentForm, TemplateFieldForm, TemplateCategoryForm
 import re
+import logging
+from .forms import CustomUserCreationForm, CustomAuthenticationForm, SimpleSignupForm, SimpleLoginForm
+
+# Configuration du logging pour debug
+logger = logging.getLogger(__name__)
 
 
+# ===============================
+# VUES D'AUTHENTIFICATION
+# ===============================
+
+logger = logging.getLogger(__name__)
+
+
+def signup_view(request):
+    """Vue d'inscription avec formulaire personnalisé"""
+
+    logger.info(f"Signup view called with method: {request.method}")
+
+    # Rediriger si déjà connecté
+    if request.user.is_authenticated:
+        messages.info(request, 'Vous êtes déjà connecté.')
+        return redirect('templates_app:template_list')
+
+    if request.method == 'POST':
+        form = CustomUserCreationForm(request.POST)
+
+        logger.info(f"Form data received - username: {request.POST.get('username', 'N/A')}")
+
+        if form.is_valid():
+            try:
+                # Créer l'utilisateur avec email
+                user = form.save()
+                logger.info(f"User created successfully: {user.username} - {user.email}")
+
+                # Connecter automatiquement l'utilisateur
+                login(request, user)
+                logger.info(f"User logged in successfully: {user.username}")
+
+                messages.success(
+                    request,
+                    f'Bienvenue {user.username} ! Votre compte a été créé avec succès.'
+                )
+
+                # Redirection sécurisée
+                try:
+                    return redirect('templates_app:template_list')
+                except NoReverseMatch:
+                    logger.warning("templates_app:template_list URL not found, redirecting to home")
+                    return redirect('/')
+
+            except Exception as e:
+                logger.error(f"Error creating user: {str(e)}")
+                messages.error(request, f'Erreur lors de la création du compte : {str(e)}')
+
+        else:
+            logger.warning(f"Form validation failed: {form.errors}")
+            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
+
+    else:
+        form = CustomUserCreationForm()
+
+    context = {
+        'form': form,
+        'title': 'Créer un compte - DocBuilder'
+    }
+
+    return render(request, 'registration/signup.html', context)
+
+
+def login_view(request):
+    """Vue de connexion avec formulaire personnalisé"""
+
+    logger.info(f"Login view called with method: {request.method}")
+
+    # Rediriger si déjà connecté
+    if request.user.is_authenticated:
+        messages.info(request, 'Vous êtes déjà connecté.')
+        return redirect('templates_app:template_list')
+
+    if request.method == 'POST':
+        form = CustomAuthenticationForm(request, data=request.POST)
+
+        logger.info(f"Login attempt for username: {request.POST.get('username', 'N/A')}")
+
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+
+            # Authentifier l'utilisateur
+            user = authenticate(username=username, password=password)
+
+            if user is not None:
+                login(request, user)
+                logger.info(f"User logged in successfully: {user.username}")
+
+                messages.success(request, f'Bienvenue {user.username} !')
+
+                # Redirection vers la page demandée ou par défaut
+                next_url = request.GET.get('next')
+                if next_url:
+                    return redirect(next_url)
+
+                try:
+                    return redirect('templates_app:template_list')
+                except NoReverseMatch:
+                    return redirect('/')
+            else:
+                logger.warning(f"Authentication failed for username: {username}")
+                messages.error(request, 'Nom d\'utilisateur ou mot de passe incorrect.')
+        else:
+            logger.warning(f"Login form validation failed: {form.errors}")
+            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
+
+    else:
+        form = CustomAuthenticationForm()
+
+    context = {
+        'form': form,
+        'title': 'Connexion - DocBuilder'
+    }
+
+    return render(request, 'registration/login.html', context)
 # ===============================
 # VUES DES TEMPLATES
 # ===============================
@@ -227,7 +353,7 @@ def document_create(request, template_id):
                     if field_value or field.is_required:
                         DocumentFieldValue.objects.create(
                             document=document,
-                            field=field,
+                            template_field=field,  # CORRECTION ICI
                             value=field_value
                         )
 
@@ -264,7 +390,7 @@ def document_edit(request, document_id):
     # Récupérer les valeurs actuelles
     current_values = {}
     for field_value in document.field_values.all():
-        current_values[f'field_{field_value.field.id}'] = field_value.value
+        current_values[f'field_{field_value.template_field.id}'] = field_value.value
 
     if request.method == 'POST':
         form = DocumentForm(request.POST, instance=document)
@@ -288,7 +414,7 @@ def document_edit(request, document_id):
                     if field_value or field.is_required:
                         DocumentFieldValue.objects.create(
                             document=document,
-                            field=field,
+                            template_field=field,  # CORRECTION ICI
                             value=field_value
                         )
 
@@ -312,6 +438,7 @@ def document_edit(request, document_id):
     return render(request, 'templates_app/document_form.html', context)
 
 
+@login_required
 def document_detail(request, document_id):
     """Détail d'un document avec le contenu rendu"""
     document = get_object_or_404(Document, id=document_id, created_by=request.user)
@@ -322,9 +449,9 @@ def document_detail(request, document_id):
     rendered_values = {}
 
     for field_value in document.field_values.all():
-        field_name = field_value.field.field_name
+        field_name = field_value.template_field.field_name
         field_values[field_name] = field_value.value
-        rendered_values[field_value.field.field_label] = field_value.value
+        rendered_values[field_value.template_field.field_label] = field_value.value
 
     # Remplacer les placeholders dans le contenu du template
     rendered_content = template.content

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load custom_filters %}
 
 {% block title %}
     {% if document %}
@@ -172,7 +173,7 @@
                                             class="form-control"
                                             rows="4"
                                             placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
-                                            {% if field.is_required %}required{% endif %}></textarea>
+                                            {% if field.is_required %}required{% endif %}>{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}</textarea>
 
                                     {% elif field.field_type == 'select' %}
                                         <select
@@ -182,7 +183,7 @@
                                             {% if field.is_required %}required{% endif %}>
                                             <option value="">Sélectionner...</option>
                                             {% for option in field.get_options_list %}
-                                                <option value="{{ option }}">{{ option }}</option>
+                                                <option value="{{ option }}" {% if current_values %}{% if current_values|get_item:"field_"|add:field.id == option %}selected{% endif %}{% endif %}>{{ option }}</option>
                                             {% endfor %}
                                         </select>
 
@@ -192,6 +193,7 @@
                                             name="field_{{ field.id }}"
                                             id="field_{{ field.id }}"
                                             class="form-control"
+                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
                                             {% if field.is_required %}required{% endif %}>
 
                                     {% elif field.field_type == 'number' %}
@@ -201,6 +203,7 @@
                                             id="field_{{ field.id }}"
                                             class="form-control"
                                             placeholder="{{ field.placeholder_text|default:'Entrez un nombre...' }}"
+                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
                                             {% if field.is_required %}required{% endif %}>
 
                                     {% elif field.field_type == 'email' %}
@@ -210,6 +213,7 @@
                                             id="field_{{ field.id }}"
                                             class="form-control"
                                             placeholder="{{ field.placeholder_text|default:'exemple@email.com' }}"
+                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
                                             {% if field.is_required %}required{% endif %}>
 
                                     {% elif field.field_type == 'url' %}
@@ -219,6 +223,7 @@
                                             id="field_{{ field.id }}"
                                             class="form-control"
                                             placeholder="{{ field.placeholder_text|default:'https://exemple.com' }}"
+                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
                                             {% if field.is_required %}required{% endif %}>
 
                                     {% else %}
@@ -228,6 +233,7 @@
                                             id="field_{{ field.id }}"
                                             class="form-control"
                                             placeholder="{{ field.placeholder_text|default:'Entrez votre texte...' }}"
+                                            value="{% if current_values %}{{ current_values|get_item:"field_"|add:field.id }}{% endif %}"
                                             {% if field.is_required %}required{% endif %}>
                                     {% endif %}
 
@@ -370,41 +376,25 @@
 
 {% block extra_js %}
 <script>
-// Validation du formulaire
+// JavaScript minimal sans animations - juste validation
 document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('documentForm');
 
-    // Pré-remplir avec des valeurs de test si c'est une création
-    {% if not document %}
-        // Exemple de données de test pour faciliter le développement
-        var testData = {
-            {% for field in fields %}
-                'field_{{ field.id }}': {% if field.field_type == 'email' %}'test@exemple.com'{% elif field.field_type == 'date' %}'2024-01-01'{% elif field.field_type == 'number' %}'100'{% elif field.field_type == 'url' %}'https://exemple.com'{% else %}'Valeur de test pour {{ field.field_name }}'{% endif %}{% if not forloop.last %},{% endif %}
-            {% endfor %}
-        };
+    // Animation simple des champs au focus/blur - sans affecter le submit
+    var fieldInputs = document.querySelectorAll('.field-input-group input, .field-input-group textarea, .field-input-group select');
 
-        // Remplir automatiquement les champs (pour debug/test)
-        // Décommentez les lignes suivantes pour pré-remplir automatiquement :
-        /*
-        Object.keys(testData).forEach(function(fieldId) {
-            var field = document.getElementById(fieldId);
-            if (field && !field.value) {
-                field.value = testData[fieldId];
-            }
+    fieldInputs.forEach(function(input) {
+        input.addEventListener('focus', function() {
+            this.closest('.field-input-group').style.borderColor = 'var(--bs-primary)';
         });
-        */
-    {% endif %}
 
+        input.addEventListener('blur', function() {
+            this.closest('.field-input-group').style.borderColor = '#e9ecef';
+        });
+    });
+
+    // Validation simple - SANS désactiver le bouton
     form.addEventListener('submit', function(e) {
-        var submitBtn = form.querySelector('button[type="submit"]');
-
-        // Afficher l'état de chargement
-        if (submitBtn) {
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sauvegarde...';
-            submitBtn.disabled = true;
-        }
-
-        // Validation des champs requis
         var requiredFields = form.querySelectorAll('[required]');
         var hasErrors = false;
 
@@ -419,27 +409,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (hasErrors) {
             e.preventDefault();
-            if (submitBtn) {
-                submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>{% if document %}Sauvegarder{% else %}Créer le document{% endif %}';
-                submitBtn.disabled = false;
-            }
             alert('Veuillez remplir tous les champs obligatoires');
+            // PAS de modification du bouton - il reste actif
         }
-    });
-
-    // Animation des champs au focus
-    var fieldInputs = document.querySelectorAll('.field-input-group input, .field-input-group textarea, .field-input-group select');
-
-    fieldInputs.forEach(function(input) {
-        input.addEventListener('focus', function() {
-            this.closest('.field-input-group').style.borderColor = 'var(--bs-primary)';
-            this.closest('.field-input-group').style.transform = 'translateY(-2px)';
-        });
-
-        input.addEventListener('blur', function() {
-            this.closest('.field-input-group').style.borderColor = '#e9ecef';
-            this.closest('.field-input-group').style.transform = 'translateY(0)';
-        });
+        // Le formulaire se soumet normalement si pas d'erreurs
     });
 });
 </script>

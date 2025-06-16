@@ -572,14 +572,6 @@ function showNotification(message, type = 'info', duration = 4000) {
     }, duration);
 }
 
-// Bouton de chargement
-function showLoadingButton() {
-    const saveBtn = document.querySelector('button[onclick="saveTemplate()"]');
-    if (saveBtn) {
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sauvegarde...';
-        saveBtn.disabled = true;
-    }
-}
 
 function hideLoadingButton() {
     const saveBtn = document.querySelector('button[onclick="saveTemplate()"]');
