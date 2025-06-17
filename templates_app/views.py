@@ -45,13 +45,14 @@ try:
 except ImportError:
     PYTHON_DOCX_AVAILABLE = False
 
-# Alternative avec WeasyPrint
+# Alternative avec WeasyPrint - AVEC GESTION D'ERREUR
 try:
     import weasyprint
 
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
+    print("WeasyPrint non disponible - utilisation de ReportLab pour les PDFs")
 
 # Configuration du logging pour debug
 logger = logging.getLogger(__name__)
@@ -67,170 +68,111 @@ def home_view(request):
         'total_templates': Template.objects.filter(is_public=True).count(),
         'total_users': Template.objects.values('created_by').distinct().count(),
         'total_documents': Document.objects.count(),
+        'show_tutorial': not request.session.get('tutorial_completed', False)
     }
+    return render(request, 'templates_app/home.html', context)
 
-    if request.user.is_authenticated:
-        # Vérifier si c'est un nouvel utilisateur (inscrit dans les 5 dernières minutes)
-        five_minutes_ago = timezone.now() - timedelta(minutes=5)
-        is_new_user = request.user.date_joined > five_minutes_ago
 
-        context.update({
-            'user_templates': Template.objects.filter(created_by=request.user).count(),
-            'user_documents': Document.objects.filter(created_by=request.user).count(),
-            'recent_templates': Template.objects.filter(created_by=request.user).order_by('-updated_at')[:3],
-            'recent_documents': Document.objects.filter(created_by=request.user).order_by('-updated_at')[:3],
-            'is_new_user': is_new_user,
-        })
-
-    return render(request, 'home.html', context)
+def complete_tutorial(request):
+    """Marquer le tutoriel comme terminé"""
+    if request.method == 'POST':
+        request.session['tutorial_completed'] = True
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False})
 
 
 # ===============================
-# VUES D'AUTHENTIFICATION
+# AUTHENTIFICATION
 # ===============================
 
 def signup_view(request):
-    """Vue d'inscription avec formulaire personnalisé"""
-    logger.info(f"Signup view called with method: {request.method}")
-
-    # Rediriger si déjà connecté
+    """Vue d'inscription"""
     if request.user.is_authenticated:
-        messages.info(request, 'Vous êtes déjà connecté.')
-        return redirect('home')
+        return redirect('templates_app:template_list')
 
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
-        logger.info(f"Form data received - username: {request.POST.get('username', 'N/A')}")
-
         if form.is_valid():
-            try:
-                # Créer l'utilisateur avec email
-                user = form.save()
-                logger.info(f"User created successfully: {user.username} - {user.email}")
-
-                # Connecter automatiquement l'utilisateur
-                login(request, user)
-                logger.info(f"User logged in successfully: {user.username}")
-
-                messages.success(
-                    request,
-                    f'Bienvenue {user.username} ! Votre compte a été créé avec succès.'
-                )
-
-                # Redirection sécurisée avec tutoriel pour nouveaux utilisateurs
-                try:
-                    return redirect('home')  # Rediriger vers l'accueil avec tutoriel auto
-                except NoReverseMatch:
-                    logger.warning("home URL not found, redirecting to templates")
-                    return redirect('templates_app:template_list')
-
-            except Exception as e:
-                logger.error(f"Error creating user: {str(e)}")
-                messages.error(request, f'Erreur lors de la création du compte : {str(e)}')
-
-        else:
-            logger.warning(f"Form validation failed: {form.errors}")
-            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
-
+            user = form.save()
+            username = form.cleaned_data.get('username')
+            messages.success(request, f'Compte créé pour {username}! Vous pouvez maintenant vous connecter.')
+            return redirect('templates_app:login')
     else:
         form = CustomUserCreationForm()
 
-    context = {
-        'form': form,
-        'title': 'Créer un compte - DocBuilder'
-    }
-
-    return render(request, 'registration/signup.html', context)
+    return render(request, 'registration/signup.html', {'form': form})
 
 
 def login_view(request):
-    """Vue de connexion avec formulaire personnalisé"""
-    logger.info(f"Login view called with method: {request.method}")
-
-    # Rediriger si déjà connecté
+    """Vue de connexion"""
     if request.user.is_authenticated:
-        messages.info(request, 'Vous êtes déjà connecté.')
         return redirect('templates_app:template_list')
 
     if request.method == 'POST':
         form = CustomAuthenticationForm(request, data=request.POST)
-        logger.info(f"Login attempt for username: {request.POST.get('username', 'N/A')}")
-
         if form.is_valid():
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password')
-
-            # Authentifier l'utilisateur
             user = authenticate(username=username, password=password)
-
             if user is not None:
                 login(request, user)
-                logger.info(f"User logged in successfully: {user.username}")
+                messages.info(request, f'Vous êtes maintenant connecté en tant que {username}.')
 
-                messages.success(request, f'Bienvenue {user.username} !')
-
-                # Redirection vers la page demandée ou accueil avec tutoriel
-                next_url = request.GET.get('next')
-                if next_url:
-                    return redirect(next_url)
-
-                # Pour les connexions, rediriger vers les templates directement
-                try:
+                # Redirection après connexion
+                next_page = request.GET.get('next')
+                if next_page:
+                    return redirect(next_page)
+                else:
                     return redirect('templates_app:template_list')
-                except NoReverseMatch:
-                    return redirect('home')
-            else:
-                logger.warning(f"Authentication failed for username: {username}")
-                messages.error(request, 'Nom d\'utilisateur ou mot de passe incorrect.')
         else:
-            logger.warning(f"Login form validation failed: {form.errors}")
-            messages.error(request, 'Veuillez corriger les erreurs ci-dessous.')
-
+            messages.error(request, 'Nom d\'utilisateur ou mot de passe incorrect.')
     else:
         form = CustomAuthenticationForm()
 
-    context = {
-        'form': form,
-        'title': 'Connexion - DocBuilder'
-    }
-
-    return render(request, 'registration/login.html', context)
+    return render(request, 'registration/login.html', {'form': form})
 
 
 # ===============================
-# VUES DES TEMPLATES
+# GESTION DES TEMPLATES
 # ===============================
 
 @login_required
 def template_list(request):
     """Liste des templates avec recherche et filtres"""
-    templates = Template.objects.filter(
-        Q(created_by=request.user) | Q(is_public=True)
-    ).select_related('created_by', 'category').annotate(
-        document_count=Count('documents')
-    ).order_by('-created_at')
+    # Récupération des paramètres de recherche
+    search = request.GET.get('search', '').strip()
+    category_filter = request.GET.get('category', '')
+    my_templates = request.GET.get('my_templates', '') == 'on'
 
-    # Filtres
-    search = request.GET.get('search', '')
-    category_id = request.GET.get('category', '')
-    visibility = request.GET.get('visibility', '')
+    # Construction de la requête
+    templates = Template.objects.all()
 
+    # Filtre par propriétaire
+    if my_templates:
+        templates = templates.filter(created_by=request.user)
+    else:
+        # Sinon, afficher les templates publics ou ceux de l'utilisateur
+        templates = templates.filter(
+            Q(created_by=request.user) | Q(is_public=True)
+        )
+
+    # Filtre par recherche
     if search:
         templates = templates.filter(
             Q(title__icontains=search) |
-            Q(description__icontains=search)
+            Q(description__icontains=search) |
+            Q(content__icontains=search)
         )
 
-    if category_id:
-        templates = templates.filter(category_id=category_id)
+    # Filtre par catégorie
+    if category_filter:
+        templates = templates.filter(category_id=category_filter)
 
-    if visibility == 'my':
-        templates = templates.filter(created_by=request.user)
-    elif visibility == 'public':
-        templates = templates.filter(is_public=True)
+    # Tri par date de création (plus récent en premier)
+    templates = templates.order_by('-created_at')
 
     # Pagination
-    paginator = Paginator(templates, 12)
+    paginator = Paginator(templates, 12)  # 12 templates par page
     page_number = request.GET.get('page')
     templates = paginator.get_page(page_number)
 
@@ -241,42 +183,38 @@ def template_list(request):
         'templates': templates,
         'categories': categories,
         'search': search,
-        'selected_category': category_id,
-        'selected_visibility': visibility,
+        'category_filter': category_filter,
+        'my_templates': my_templates,
     }
     return render(request, 'templates_app/template_list.html', context)
 
 
+@login_required
 def template_detail(request, template_id):
-    """Détail d'un template"""
+    """Détail d'un template avec ses champs"""
     template = get_object_or_404(Template, id=template_id)
 
     # Vérifier les permissions
-    if not template.is_public and (not request.user.is_authenticated or template.created_by != request.user):
+    if not template.is_public and template.created_by != request.user:
         messages.error(request, "Vous n'avez pas accès à ce template.")
         return redirect('templates_app:template_list')
 
-    # Récupérer les champs et documents associés
-    fields = template.fields.all().order_by('order', 'id')
+    # Récupérer les champs du template
+    fields = template.fields.all().order_by('order', 'field_name')
 
-    if request.user.is_authenticated:
-        recent_documents = template.documents.filter(created_by=request.user).order_by('-updated_at')[:5]
-    else:
-        recent_documents = []
-
-    # Calculer les statistiques
-    all_documents = template.documents.all()
-    completed_documents = all_documents.filter(is_completed=True)
-    draft_documents = all_documents.filter(is_completed=False)
+    # Compter les documents créés avec ce template
+    documents_count = Document.objects.filter(template=template).count()
+    user_documents_count = Document.objects.filter(
+        template=template,
+        created_by=request.user
+    ).count() if request.user.is_authenticated else 0
 
     context = {
         'template': template,
         'fields': fields,
-        'recent_documents': recent_documents,
-        'total_documents': all_documents.count(),
-        'completed_documents_count': completed_documents.count(),
-        'draft_documents_count': draft_documents.count(),
-        'template_content_length': len(template.content) if template.content else 0,
+        'documents_count': documents_count,
+        'user_documents_count': user_documents_count,
+        'can_edit': request.user == template.created_by,
     }
     return render(request, 'templates_app/template_detail.html', context)
 
@@ -294,87 +232,55 @@ def template_create(request):
             # Extraire et créer automatiquement les champs du contenu
             create_fields_from_content(template)
 
-            messages.success(request, f'Template "{template.title}" créé avec succès !')
+            messages.success(request, f'Template "{template.title}" créé avec succès!')
             return redirect('templates_app:template_detail', template_id=template.id)
-        else:
-            messages.error(request, 'Veuillez corriger les erreurs dans le formulaire.')
     else:
         form = TemplateForm()
 
+    categories = TemplateCategory.objects.all().order_by('name')
     context = {
         'form': form,
-        'template': None,
+        'categories': categories,
+        'action': 'Créer',
     }
     return render(request, 'templates_app/template_create.html', context)
 
 
 @login_required
 def template_edit(request, template_id):
-    """Modifier un template existant"""
+    """Éditer un template existant"""
     template = get_object_or_404(Template, id=template_id, created_by=request.user)
 
     if request.method == 'POST':
         form = TemplateForm(request.POST, instance=template)
         if form.is_valid():
-            template = form.save()
+            form.save()
 
             # Mettre à jour les champs si le contenu a changé
             create_fields_from_content(template)
 
-            messages.success(request, f'Template "{template.title}" modifié avec succès !')
+            messages.success(request, f'Template "{template.title}" modifié avec succès!')
             return redirect('templates_app:template_detail', template_id=template.id)
-        else:
-            messages.error(request, 'Veuillez corriger les erreurs dans le formulaire.')
     else:
         form = TemplateForm(instance=template)
 
+    categories = TemplateCategory.objects.all().order_by('name')
     context = {
         'form': form,
         'template': template,
+        'categories': categories,
+        'action': 'Modifier',
     }
     return render(request, 'templates_app/template_create.html', context)
 
 
-def template_preview(request, template_id):
-    """Aperçu du template avec des données d'exemple"""
-    template = get_object_or_404(Template, id=template_id)
-
-    # Vérifier les permissions
-    if not template.is_public and (not request.user.is_authenticated or template.created_by != request.user):
-        messages.error(request, "Vous n'avez pas accès à ce template.")
-        return redirect('templates_app:template_list')
-
-    # Récupérer les champs du template
-    fields = template.fields.all()
-
-    # Créer des données d'exemple pour l'aperçu
-    preview_data = {}
-    for field in fields:
-        preview_data[field.field_name] = generate_sample_data(field.field_name)
-
-    # Remplacer les placeholders dans le contenu
-    rendered_content = template.content
-    for field_name, field_value in preview_data.items():
-        placeholder = f'{{{{{field_name}}}}}'
-        rendered_content = rendered_content.replace(placeholder, str(field_value))
-
-    context = {
-        'template': template,
-        'fields': fields,
-        'rendered_content': rendered_content,
-        'preview_data': preview_data,
-        'is_preview': True,
-    }
-    return render(request, 'templates_app/template_preview.html', context)
-
-
 # ===============================
-# VUES DES DOCUMENTS
+# GESTION DES DOCUMENTS
 # ===============================
 
 @login_required
 def document_create(request, template_id):
-    """Créer un nouveau document à partir d'un template"""
+    """Créer un document basé sur un template"""
     template = get_object_or_404(Template, id=template_id)
 
     # Vérifier les permissions
@@ -383,130 +289,70 @@ def document_create(request, template_id):
         return redirect('templates_app:template_list')
 
     # Récupérer les champs du template
-    fields = template.fields.all().order_by('order', 'id')
+    fields = template.fields.all().order_by('order', 'field_name')
 
     if request.method == 'POST':
-        form = DocumentForm(request.POST)
+        # Créer le document
+        document_title = request.POST.get('document_title', f'Document basé sur {template.title}')
+        document = Document.objects.create(
+            title=document_title,
+            template=template,
+            created_by=request.user,
+            is_completed=False
+        )
 
-        if form.is_valid():
-            try:
-                # Créer le document
-                document = Document.objects.create(
-                    template=template,
-                    title=form.cleaned_data['title'],
-                    created_by=request.user,
-                    is_completed=request.POST.get('mark_completed') == 'on'
+        # Sauvegarder les valeurs des champs
+        for field in fields:
+            field_value = request.POST.get(f'field_{field.id}', '')
+            if field_value:  # Ne sauvegarder que si il y a une valeur
+                DocumentFieldValue.objects.create(
+                    document=document,
+                    template_field=field,
+                    value=field_value
                 )
 
-                # Sauvegarder les valeurs des champs
-                for field in fields:
-                    field_name = f'field_{field.id}'
-                    field_value = request.POST.get(field_name, '')
+        # Marquer comme complété si tous les champs requis sont remplis
+        required_fields = fields.filter(is_required=True)
+        filled_required = 0
+        for field in required_fields:
+            if request.POST.get(f'field_{field.id}'):
+                filled_required += 1
 
-                    if field_value or field.is_required:
-                        DocumentFieldValue.objects.create(
-                            document=document,
-                            template_field=field,
-                            value=field_value
-                        )
+        if filled_required == required_fields.count():
+            document.is_completed = True
+            document.save()
 
-                messages.success(request, f'Document "{document.title}" créé avec succès !')
-                return redirect('templates_app:document_detail', document_id=document.id)
-
-            except Exception as e:
-                messages.error(request, f'Erreur lors de la création du document : {str(e)}')
-        else:
-            messages.error(request, 'Veuillez corriger les erreurs dans le formulaire.')
-    else:
-        # Formulaire vide pour création
-        initial_data = {
-            'title': f'Document basé sur {template.title} - {timezone.now().strftime("%d/%m/%Y %H:%M")}'
-        }
-        form = DocumentForm(initial=initial_data)
+        messages.success(request, f'Document "{document.title}" créé avec succès!')
+        return redirect('templates_app:document_detail', document_id=document.id)
 
     context = {
-        'form': form,
         'template': template,
         'fields': fields,
-        'document': None,
-    }
-    return render(request, 'templates_app/document_form.html', context)
-
-
-@login_required
-def document_edit(request, document_id):
-    """Modifier un document existant"""
-    document = get_object_or_404(Document, id=document_id, created_by=request.user)
-    template = document.template
-    fields = template.fields.all().order_by('order', 'id')
-
-    # Récupérer les valeurs actuelles
-    current_values = {}
-    for field_value in document.field_values.all():
-        current_values[f'field_{field_value.template_field.id}'] = field_value.value
-
-    if request.method == 'POST':
-        form = DocumentForm(request.POST, instance=document)
-
-        if form.is_valid():
-            try:
-                # Mettre à jour le document
-                document = form.save(commit=False)
-                document.is_completed = request.POST.get('mark_completed') == 'on'
-                document.save()
-
-                # Mettre à jour les valeurs des champs
-                document.field_values.all().delete()
-
-                # Créer les nouvelles valeurs
-                for field in fields:
-                    field_name = f'field_{field.id}'
-                    field_value = request.POST.get(field_name, '')
-
-                    if field_value or field.is_required:
-                        DocumentFieldValue.objects.create(
-                            document=document,
-                            template_field=field,
-                            value=field_value
-                        )
-
-                messages.success(request, f'Document "{document.title}" modifié avec succès !')
-                return redirect('templates_app:document_detail', document_id=document.id)
-
-            except Exception as e:
-                messages.error(request, f'Erreur lors de la modification : {str(e)}')
-        else:
-            messages.error(request, 'Veuillez corriger les erreurs dans le formulaire.')
-    else:
-        form = DocumentForm(instance=document)
-
-    context = {
-        'form': form,
-        'template': template,
-        'fields': fields,
-        'document': document,
-        'current_values': current_values,
+        'document': None,  # Pas de document existant pour la création
     }
     return render(request, 'templates_app/document_form.html', context)
 
 
 @login_required
 def document_detail(request, document_id):
-    """Détail d'un document avec le contenu rendu"""
+    """Détail d'un document"""
     document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    # Vérifier que le document a bien un template
+    if not document.template:
+        messages.error(request, "Ce document n'est pas associé à un template valide.")
+        return redirect('templates_app:document_list')
+
     template = document.template
 
     # Récupérer les valeurs des champs
     field_values = {}
-    rendered_values = {}
-
     for field_value in document.field_values.all():
         field_name = field_value.template_field.field_name
         field_values[field_name] = field_value.value
-        rendered_values[field_value.template_field.field_label] = field_value.value
 
-    # Remplacer les placeholders dans le contenu du template
-    rendered_content = template.content
+    # Générer le contenu rendu
+    rendered_content = document.template.content
     for field_name, field_value in field_values.items():
         placeholder = f'{{{{{field_name}}}}}'
         rendered_content = rendered_content.replace(placeholder, str(field_value))
@@ -515,21 +361,78 @@ def document_detail(request, document_id):
         'document': document,
         'template': template,
         'rendered_content': rendered_content,
-        'field_values': rendered_values,
+        'field_values': field_values,
     }
     return render(request, 'templates_app/document_detail.html', context)
 
 
 @login_required
-def document_list(request):
-    """Liste des documents de l'utilisateur avec filtres et statistiques"""
-    documents = Document.objects.filter(created_by=request.user).select_related('template').order_by('-updated_at')
+def document_edit(request, document_id):
+    """Éditer un document existant"""
+    document = get_object_or_404(Document, id=document_id, created_by=request.user)
+    template = document.template
+    fields = template.fields.all().order_by('order', 'field_name')
 
-    # Filtres
-    search = request.GET.get('search', '')
+    # Récupérer les valeurs existantes
+    existing_values = {}
+    for field_value in document.field_values.all():
+        existing_values[field_value.template_field.id] = field_value.value
+
+    if request.method == 'POST':
+        # Mettre à jour le titre si fourni
+        new_title = request.POST.get('document_title')
+        if new_title and new_title != document.title:
+            document.title = new_title
+            document.save()
+
+        # Supprimer les anciennes valeurs
+        document.field_values.all().delete()
+
+        # Sauvegarder les nouvelles valeurs
+        for field in fields:
+            field_value = request.POST.get(f'field_{field.id}', '')
+            if field_value:
+                DocumentFieldValue.objects.create(
+                    document=document,
+                    template_field=field,
+                    value=field_value
+                )
+
+        # Mettre à jour le statut
+        required_fields = fields.filter(is_required=True)
+        filled_required = 0
+        for field in required_fields:
+            if request.POST.get(f'field_{field.id}'):
+                filled_required += 1
+
+        document.is_completed = filled_required == required_fields.count()
+        document.save()
+
+        messages.success(request, f'Document "{document.title}" modifié avec succès!')
+        return redirect('templates_app:document_detail', document_id=document.id)
+
+    context = {
+        'document': document,
+        'template': template,
+        'fields': fields,
+        'existing_values': existing_values,
+    }
+    return render(request, 'templates_app/document_edit.html', context)
+
+
+@login_required
+def document_list(request):
+    """Liste des documents de l'utilisateur avec filtres"""
+    # Paramètres de recherche et filtres
+    search = request.GET.get('search', '').strip()
     selected_template = request.GET.get('template', '')
     selected_status = request.GET.get('status', '')
 
+    # Requête de base
+    documents = Document.objects.filter(created_by=request.user)
+    all_documents = documents  # Pour les statistiques
+
+    # Filtres
     if search:
         documents = documents.filter(
             Q(title__icontains=search) |
@@ -539,13 +442,16 @@ def document_list(request):
     if selected_template:
         documents = documents.filter(template_id=selected_template)
 
+    # Correction: utiliser is_completed au lieu de status
     if selected_status == 'completed':
         documents = documents.filter(is_completed=True)
     elif selected_status == 'draft':
         documents = documents.filter(is_completed=False)
 
-    # Calculs des statistiques
-    all_documents = Document.objects.filter(created_by=request.user)
+    # Tri par date de modification
+    documents = documents.order_by('-updated_at')
+
+    # Statistiques - Correction: utiliser is_completed
     completed_count = all_documents.filter(is_completed=True).count()
     draft_count = all_documents.filter(is_completed=False).count()
 
@@ -593,6 +499,31 @@ def document_delete(request, document_id):
     return render(request, 'templates_app/document_confirm_delete.html', context)
 
 
+@login_required
+def document_duplicate(request, document_id):
+    """Dupliquer un document existant"""
+    original_document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    # Créer une copie du document
+    new_document = Document.objects.create(
+        title=f"Copie de {original_document.title}",
+        template=original_document.template,
+        created_by=request.user,
+        status='draft'
+    )
+
+    # Copier les valeurs des champs
+    for field_value in original_document.field_values.all():
+        DocumentFieldValue.objects.create(
+            document=new_document,
+            template_field=field_value.template_field,
+            value=field_value.value
+        )
+
+    messages.success(request, f'Document dupliqué avec succès : "{new_document.title}"')
+    return redirect('templates_app:document_detail', document_id=new_document.id)
+
+
 # ===============================
 # VUES D'EXPORT - FONCTIONNELLES
 # ===============================
@@ -600,14 +531,20 @@ def document_delete(request, document_id):
 @login_required
 def document_export_pdf(request, document_id):
     """Export PDF avec ReportLab ou WeasyPrint"""
-    document = get_object_or_404(Document, id=document_id, created_by=request.user)
-
-    if not REPORTLAB_AVAILABLE and not WEASYPRINT_AVAILABLE:
-        messages.error(request,
-                       "Les bibliothèques PDF ne sont pas installées. Installez reportlab ou weasyprint avec: pip install reportlab")
-        return redirect('templates_app:document_detail', document_id=document_id)
-
     try:
+        document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+        if not REPORTLAB_AVAILABLE and not WEASYPRINT_AVAILABLE:
+            messages.error(request,
+                           "Les bibliothèques PDF ne sont pas installées. "
+                           "Installez reportlab ou weasyprint avec: pip install reportlab")
+            return redirect('templates_app:document_detail', document_id=document_id)
+
+        # Vérifier que le document a un template
+        if not document.template:
+            messages.error(request, "Ce document n'a pas de template associé.")
+            return redirect('templates_app:document_detail', document_id=document_id)
+
         # Récupérer les données du document
         template = document.template
         field_values = {}
@@ -617,7 +554,7 @@ def document_export_pdf(request, document_id):
             field_values[field_name] = field_value.value
 
         # Remplacer les placeholders
-        rendered_content = template.content
+        rendered_content = template.content or ""
         for field_name, field_value in field_values.items():
             placeholder = f'{{{{{field_name}}}}}'
             rendered_content = rendered_content.replace(placeholder, str(field_value))
@@ -628,6 +565,11 @@ def document_export_pdf(request, document_id):
             return export_pdf_reportlab(document, rendered_content)
 
     except Exception as e:
+        # Log l'erreur pour debugging
+        import traceback
+        print(f"Erreur lors de l'export PDF: {str(e)}")
+        print(traceback.format_exc())
+
         messages.error(request, f'Erreur lors de l\'export PDF : {str(e)}')
         return redirect('templates_app:document_detail', document_id=document_id)
 
@@ -639,7 +581,8 @@ def document_export_docx(request, document_id):
 
     if not PYTHON_DOCX_AVAILABLE:
         messages.error(request,
-                       "La bibliothèque python-docx n'est pas installée. Installez avec: pip install python-docx")
+                       "La bibliothèque python-docx n'est pas installée. "
+                       "Installez-la avec: pip install python-docx")
         return redirect('templates_app:document_detail', document_id=document_id)
 
     try:
@@ -657,41 +600,27 @@ def document_export_docx(request, document_id):
             placeholder = f'{{{{{field_name}}}}}'
             rendered_content = rendered_content.replace(placeholder, str(field_value))
 
-        # Créer le document Word
+        # Créer le document DOCX
         doc = DocxDocument()
 
-        # Configurer les styles
-        styles = doc.styles
+        # Titre
+        title = doc.add_heading(document.title, 0)
+        title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-        # Style normal
-        normal_style = styles['Normal']
-        normal_style.font.size = Pt(12)
-        normal_style.font.name = 'Times New Roman'
-        normal_style.paragraph_format.line_spacing = 1.5
-
-        # Ajouter le titre
-        title_para = doc.add_heading(document.title, 0)
-        title_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
-        # Ajouter la date
+        # Date
         date_para = doc.add_paragraph(f"Généré le {timezone.now().strftime('%d/%m/%Y à %H:%M')}")
         date_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-        # Ajouter une ligne vide
-        doc.add_paragraph("")
-
-        # Ajouter le contenu principal
+        # Contenu principal
         lines = rendered_content.split('\n')
         for line in lines:
             if line.strip():
                 doc.add_paragraph(line.strip())
-            else:
-                doc.add_paragraph("")
 
-        # Ajouter le footer
-        doc.add_paragraph("")
-        footer_para = doc.add_paragraph(f"Document généré par DocBuilder - {document.template.title}")
-        footer_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        # Footer
+        doc.add_paragraph()
+        footer = doc.add_paragraph(f"Document généré par DocBuilder - {template.title}")
+        footer.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
         # Sauvegarder dans un buffer
         buffer = io.BytesIO()
@@ -715,7 +644,7 @@ def document_export_docx(request, document_id):
 
 @login_required
 def document_export_html(request, document_id):
-    """Export HTML amélioré"""
+    """Export HTML avec styles intégrés"""
     document = get_object_or_404(Document, id=document_id, created_by=request.user)
 
     try:
@@ -733,7 +662,7 @@ def document_export_html(request, document_id):
             placeholder = f'{{{{{field_name}}}}}'
             rendered_content = rendered_content.replace(placeholder, str(field_value))
 
-        # Créer le HTML complet
+        # Créer le HTML avec styles
         html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -743,10 +672,11 @@ def document_export_html(request, document_id):
     <style>
         body {{
             font-family: 'Times New Roman', serif;
-            margin: 2cm;
             line-height: 1.6;
+            max-width: 800px;
+            margin: 2em auto;
+            padding: 2em;
             color: #333;
-            background: white;
         }}
         .document-header {{
             text-align: center;
@@ -951,84 +881,373 @@ def export_pdf_reportlab(document, content):
 
 
 # ===============================
-# VUES PLACEHOLDER (fonctionnalités futures)
+# GESTION DES CATÉGORIES
 # ===============================
 
 @login_required
-def template_duplicate(request, template_id):
-    """Placeholder pour dupliquer un template"""
-    messages.info(request, "Fonction de duplication en cours de développement.")
-    return redirect('templates_app:template_detail', template_id=template_id)
-
-
-@login_required
-def template_delete(request, template_id):
-    """Placeholder pour supprimer un template"""
-    messages.info(request, "Fonction de suppression en cours de développement.")
-    return redirect('templates_app:template_detail', template_id=template_id)
-
-
-@login_required
-def template_edit_fields(request, template_id):
-    """Placeholder pour éditer les champs"""
-    messages.info(request, "Fonction d'édition des champs en cours de développement.")
-    return redirect('templates_app:template_detail', template_id=template_id)
-
-
-@login_required
-def template_add_field(request, template_id):
-    """Placeholder pour ajouter un champ"""
-    messages.info(request, "Fonction d'ajout de champ en cours de développement.")
-    return redirect('templates_app:template_detail', template_id=template_id)
-
-
-@login_required
-def template_delete_field(request, template_id, field_id):
-    """Placeholder pour supprimer un champ"""
-    messages.info(request, "Fonction de suppression de champ en cours de développement.")
-    return redirect('templates_app:template_detail', template_id=template_id)
-
-
-@login_required
-def document_duplicate(request, document_id):
-    """Placeholder pour dupliquer un document"""
-    messages.info(request, "Fonction de duplication en cours de développement.")
-    return redirect('templates_app:document_detail', document_id=document_id)
-
-
-@login_required
-def template_export(request, template_id):
-    """Placeholder pour export template"""
-    messages.info(request, "Export de template en cours de développement.")
-    return redirect('templates_app:template_detail', template_id=template_id)
-
-
-@login_required
 def category_list(request):
-    """Placeholder pour liste des catégories"""
-    messages.info(request, "Gestion des catégories en cours de développement.")
-    return redirect('templates_app:template_list')
+    """Liste des catégories"""
+    categories = TemplateCategory.objects.all().annotate(
+        template_count=Count('templates')
+    ).order_by('name')
+
+    context = {
+        'categories': categories,
+    }
+    return render(request, 'templates_app/category_list.html', context)
 
 
 @login_required
 def category_create(request):
-    """Placeholder pour créer une catégorie"""
-    messages.info(request, "Création de catégorie en cours de développement.")
-    return redirect('templates_app:template_list')
+    """Créer une nouvelle catégorie"""
+    if request.method == 'POST':
+        form = TemplateCategoryForm(request.POST)
+        if form.is_valid():
+            category = form.save()
+            messages.success(request, f'Catégorie "{category.name}" créée avec succès!')
+            return redirect('templates_app:category_list')
+    else:
+        form = TemplateCategoryForm()
+
+    context = {
+        'form': form,
+        'action': 'Créer',
+    }
+    return render(request, 'templates_app/category_form.html', context)
 
 
 @login_required
 def category_edit(request, category_id):
-    """Placeholder pour modifier une catégorie"""
-    messages.info(request, "Modification de catégorie en cours de développement.")
-    return redirect('templates_app:template_list')
+    """Éditer une catégorie existante"""
+    category = get_object_or_404(TemplateCategory, id=category_id)
+
+    if request.method == 'POST':
+        form = TemplateCategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Catégorie "{category.name}" modifiée avec succès!')
+            return redirect('templates_app:category_list')
+    else:
+        form = TemplateCategoryForm(instance=category)
+
+    context = {
+        'form': form,
+        'category': category,
+        'action': 'Modifier',
+    }
+    return render(request, 'templates_app/category_form.html', context)
 
 
 @login_required
 def category_delete(request, category_id):
-    """Placeholder pour supprimer une catégorie"""
-    messages.info(request, "Suppression de catégorie en cours de développement.")
-    return redirect('templates_app:template_list')
+    """Supprimer une catégorie avec confirmation"""
+    category = get_object_or_404(TemplateCategory, id=category_id)
+
+    # Vérifier s'il y a des templates dans cette catégorie
+    template_count = category.templates.count()
+
+    if request.method == 'POST':
+        if template_count > 0:
+            messages.error(request,
+                           f'Impossible de supprimer la catégorie "{category.name}" : '
+                           f'elle contient {template_count} template(s).')
+        else:
+            category_name = category.name
+            category.delete()
+            messages.success(request, f'Catégorie "{category_name}" supprimée avec succès.')
+        return redirect('templates_app:category_list')
+
+    context = {
+        'category': category,
+        'template_count': template_count,
+    }
+    return render(request, 'templates_app/category_confirm_delete.html', context)
+
+
+# ===============================
+# GESTION DES CHAMPS DE TEMPLATE
+# ===============================
+
+@login_required
+def template_field_add(request, template_id):
+    """Ajouter un champ à un template"""
+    template = get_object_or_404(Template, id=template_id, created_by=request.user)
+
+    if request.method == 'POST':
+        form = TemplateFieldForm(request.POST)
+        if form.is_valid():
+            field = form.save(commit=False)
+            field.template = template
+
+            # Définir l'ordre du champ
+            max_order = template.fields.aggregate(
+                max_order=Count('order')
+            )['max_order'] or 0
+            field.order = max_order + 1
+
+            field.save()
+            messages.success(request, f'Champ "{field.field_name}" ajouté avec succès!')
+            return redirect('templates_app:template_detail', template_id=template.id)
+    else:
+        form = TemplateFieldForm()
+
+    context = {
+        'form': form,
+        'template': template,
+        'action': 'Ajouter',
+    }
+    return render(request, 'templates_app/template_field_form.html', context)
+
+
+@login_required
+def template_field_edit(request, template_id, field_id):
+    """Éditer un champ de template"""
+    template = get_object_or_404(Template, id=template_id, created_by=request.user)
+    field = get_object_or_404(TemplateField, id=field_id, template=template)
+
+    if request.method == 'POST':
+        form = TemplateFieldForm(request.POST, instance=field)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Champ "{field.field_name}" modifié avec succès!')
+            return redirect('templates_app:template_detail', template_id=template.id)
+    else:
+        form = TemplateFieldForm(instance=field)
+
+    context = {
+        'form': form,
+        'template': template,
+        'field': field,
+        'action': 'Modifier',
+    }
+    return render(request, 'templates_app/template_field_form.html', context)
+
+
+@login_required
+def template_field_delete(request, template_id, field_id):
+    """Supprimer un champ de template"""
+    template = get_object_or_404(Template, id=template_id, created_by=request.user)
+    field = get_object_or_404(TemplateField, id=field_id, template=template)
+
+    if request.method == 'POST':
+        field_name = field.field_name
+        field.delete()
+        messages.success(request, f'Champ "{field_name}" supprimé avec succès.')
+        return redirect('templates_app:template_detail', template_id=template.id)
+
+    context = {
+        'template': template,
+        'field': field,
+    }
+    return render(request, 'templates_app/template_field_confirm_delete.html', context)
+
+
+# ===============================
+# VUES UTILITAIRES ET AJAX
+# ===============================
+
+@login_required
+def template_preview(request, template_id):
+    """Prévisualiser un template avec des données d'exemple"""
+    template = get_object_or_404(Template, id=template_id)
+
+    # Vérifier les permissions
+    if not template.is_public and template.created_by != request.user:
+        return JsonResponse({'error': 'Accès refusé'}, status=403)
+
+    # Remplacer les placeholders par des exemples
+    content = template.content
+    fields = template.fields.all()
+
+    for field in fields:
+        placeholder = f'{{{{{field.field_name}}}}}'
+        example_value = field.default_value or f'[Exemple {field.field_name}]'
+        content = content.replace(placeholder, example_value)
+
+    return JsonResponse({
+        'content': content,
+        'title': template.title
+    })
+
+
+@login_required
+def document_preview(request, document_id):
+    """Prévisualiser un document avec ses valeurs actuelles"""
+    document = get_object_or_404(Document, id=document_id, created_by=request.user)
+
+    # Récupérer les valeurs des champs
+    field_values = {}
+    for field_value in document.field_values.all():
+        field_name = field_value.template_field.field_name
+        field_values[field_name] = field_value.value
+
+    # Générer le contenu rendu
+    rendered_content = document.template.content
+    for field_name, field_value in field_values.items():
+        placeholder = f'{{{{{field_name}}}}}'
+        rendered_content = rendered_content.replace(placeholder, str(field_value))
+
+    return JsonResponse({
+        'content': rendered_content,
+        'title': document.title
+    })
+
+
+# ===============================
+# VUES AVANCÉES
+# ===============================
+
+@login_required
+def template_duplicate(request, template_id):
+    """Dupliquer un template"""
+    original_template = get_object_or_404(Template, id=template_id)
+
+    # Vérifier les permissions
+    if not original_template.is_public and original_template.created_by != request.user:
+        messages.error(request, "Vous n'avez pas accès à ce template.")
+        return redirect('templates_app:template_list')
+
+    # Créer une copie du template
+    new_template = Template.objects.create(
+        title=f"Copie de {original_template.title}",
+        description=original_template.description,
+        content=original_template.content,
+        category=original_template.category,
+        created_by=request.user,
+        is_public=False  # Les copies sont privées par défaut
+    )
+
+    # Copier les champs
+    for field in original_template.fields.all():
+        TemplateField.objects.create(
+            template=new_template,
+            field_name=field.field_name,
+            field_type=field.field_type,
+            order=field.order,
+            is_required=field.is_required,
+            field_options=field.field_options,
+            placeholder_text=field.placeholder_text
+        )
+
+    messages.success(request, f'Template dupliqué avec succès : "{new_template.title}"')
+    return redirect('templates_app:template_detail', template_id=new_template.id)
+
+
+@login_required
+def template_delete(request, template_id):
+    """Supprimer un template avec confirmation"""
+    template = get_object_or_404(Template, id=template_id, created_by=request.user)
+
+    # Vérifier s'il y a des documents basés sur ce template
+    document_count = Document.objects.filter(template=template).count()
+
+    if request.method == 'POST':
+        if document_count > 0:
+            messages.error(request,
+                           f'Impossible de supprimer le template "{template.title}" : '
+                           f'{document_count} document(s) sont basés sur ce template.')
+        else:
+            template_title = template.title
+            template.delete()
+            messages.success(request, f'Template "{template_title}" supprimé avec succès.')
+        return redirect('templates_app:template_list')
+
+    context = {
+        'template': template,
+        'document_count': document_count,
+    }
+    return render(request, 'templates_app/template_confirm_delete.html', context)
+
+
+# ===============================
+# GESTION DES ERREURS
+# ===============================
+
+def handler404(request, exception):
+    """Page d'erreur 404 personnalisée"""
+    return render(request, 'templates_app/404.html', status=404)
+
+
+def handler500(request):
+    """Page d'erreur 500 personnalisée"""
+    return render(request, 'templates_app/500.html', status=500)
+
+
+# ===============================
+# VUES DE RECHERCHE ET STATISTIQUES
+# ===============================
+
+@login_required
+def search_global(request):
+    """Recherche globale dans templates et documents"""
+    query = request.GET.get('q', '').strip()
+
+    if not query:
+        return render(request, 'templates_app/search_results.html', {
+            'query': query,
+            'templates': [],
+            'documents': [],
+        })
+
+    # Recherche dans les templates
+    templates = Template.objects.filter(
+        Q(created_by=request.user) | Q(is_public=True)
+    ).filter(
+        Q(title__icontains=query) |
+        Q(description__icontains=query) |
+        Q(content__icontains=query)
+    ).order_by('-created_at')[:10]
+
+    # Recherche dans les documents
+    documents = Document.objects.filter(
+        created_by=request.user
+    ).filter(
+        Q(title__icontains=query) |
+        Q(template__title__icontains=query)
+    ).order_by('-updated_at')[:10]
+
+    context = {
+        'query': query,
+        'templates': templates,
+        'documents': documents,
+    }
+    return render(request, 'templates_app/search_results.html', context)
+
+
+@login_required
+def dashboard(request):
+    """Tableau de bord utilisateur avec statistiques"""
+    user = request.user
+
+    # Statistiques utilisateur
+    user_templates = Template.objects.filter(created_by=user)
+    user_documents = Document.objects.filter(created_by=user)
+
+    # Statistiques générales
+    stats = {
+        'total_templates': user_templates.count(),
+        'public_templates': user_templates.filter(is_public=True).count(),
+        'total_documents': user_documents.count(),
+        'completed_documents': user_documents.filter(status='completed').count(),
+        'draft_documents': user_documents.filter(status='draft').count(),
+    }
+
+    # Activité récente
+    recent_documents = user_documents.order_by('-updated_at')[:5]
+    recent_templates = user_templates.order_by('-created_at')[:5]
+
+    # Documents par template
+    template_usage = user_templates.annotate(
+        doc_count=Count('documents')
+    ).filter(doc_count__gt=0).order_by('-doc_count')[:5]
+
+    context = {
+        'stats': stats,
+        'recent_documents': recent_documents,
+        'recent_templates': recent_templates,
+        'template_usage': template_usage,
+    }
+    return render(request, 'templates_app/dashboard.html', context)
 
 
 # ===============================
@@ -1057,6 +1276,8 @@ def generate_sample_data(field_name):
         'nom_client': 'Jean Dupont',
         'nom_entreprise': 'ACME Corporation',
         'adresse_entreprise': '123 Rue de la Paix, 75001 Paris',
+        'nom_representant': 'Marie Martin',
+        'fonction_representant': 'Directrice des Ressources Humaines',
         'email': 'contact@example.com',
         'telephone': '01 23 45 67 89',
         'date_aujourd_hui': timezone.now().strftime('%d/%m/%Y'),
@@ -1080,6 +1301,10 @@ def generate_sample_data(field_name):
         return 'Jean Dupont'
     elif 'nom' in field_lower and 'entreprise' in field_lower:
         return 'ACME Corporation'
+    elif 'nom' in field_lower and 'representant' in field_lower:
+        return 'Marie Martin'
+    elif 'fonction' in field_lower and 'representant' in field_lower:
+        return 'Directrice des Ressources Humaines'
     elif 'adresse' in field_lower:
         return '123 Rue de la Paix, 75001 Paris'
     elif 'telephone' in field_lower or 'tel' in field_lower:
@@ -1138,3 +1363,50 @@ def create_fields_from_content(template):
                 order=i * 10,
                 placeholder_text=f'Entrez {field_label.lower()}'
             )
+
+
+@login_required
+def template_export(request, template_id):
+    """Export de template en JSON ou autre format"""
+    template = get_object_or_404(Template, id=template_id)
+
+    # Vérifier les permissions
+    if not template.is_public and template.created_by != request.user:
+        messages.error(request, "Vous n'avez pas accès à ce template.")
+        return redirect('templates_app:template_list')
+
+    messages.info(request, "Export de template en cours de développement.")
+    return redirect('templates_app:template_detail', template_id=template_id)
+
+
+@login_required
+def template_edit_fields(request, template_id):
+    """Placeholder pour éditer les champs"""
+    messages.info(request, "Fonction d'édition des champs en cours de développement.")
+    return redirect('templates_app:template_detail', template_id=template_id)
+
+
+@login_required
+def template_add_field(request, template_id):
+    """Placeholder pour ajouter un champ"""
+    messages.info(request, "Fonction d'ajout de champ en cours de développement.")
+    return redirect('templates_app:template_detail', template_id=template_id)
+
+
+@login_required
+def template_delete_field(request, template_id, field_id):
+    """Supprimer un champ de template"""
+    template = get_object_or_404(Template, id=template_id, created_by=request.user)
+    field = get_object_or_404(TemplateField, id=field_id, template=template)
+
+    if request.method == 'POST':
+        field_name = field.field_name
+        field.delete()
+        messages.success(request, f'Champ "{field_name}" supprimé avec succès.')
+        return redirect('templates_app:template_detail', template_id=template.id)
+
+    context = {
+        'template': template,
+        'field': field,
+    }
+    return render(request, 'templates_app/template_field_confirm_delete.html', context)

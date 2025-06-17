@@ -23,7 +23,7 @@
                         </div>
                     {% endif %}
 
-                    <!-- registration/login.html -->
+                    <!-- Formulaire de connexion -->
                     <form method="post" id="loginForm">
                         {% csrf_token %}
 
@@ -104,16 +104,16 @@
                             </button>
                         </div>
 
-                        <!-- Liens utiles -->
+                        <!-- Liens utiles - CORRIGÉS -->
                         <div class="text-center">
                             <p class="mb-2">
-                                <a href="{% url 'password_reset' %}" class="text-decoration-none">
-                                    Mot de passe oublié ?
-                                </a>
+                                <small class="text-muted">
+                                    Mot de passe oublié ? Contactez l'administrateur
+                                </small>
                             </p>
                             <p>
                                 Pas encore de compte ?
-                                <a href="{% url 'signup' %}" class="text-decoration-none">
+                                <a href="{% url 'templates_app:signup' %}" class="text-decoration-none">
                                     Créer un compte
                                 </a>
                             </p>
