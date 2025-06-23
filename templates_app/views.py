@@ -509,7 +509,7 @@ def document_duplicate(request, document_id):
         title=f"Copie de {original_document.title}",
         template=original_document.template,
         created_by=request.user,
-        status='draft'
+        is_completed=False  # CORRECTION: utiliser is_completed au lieu de status
     )
 
     # Copier les valeurs des champs
@@ -887,9 +887,7 @@ def export_pdf_reportlab(document, content):
 @login_required
 def category_list(request):
     """Liste des catégories"""
-    categories = TemplateCategory.objects.all().annotate(
-        template_count=Count('templates')
-    ).order_by('name')
+    categories = TemplateCategory.objects.all().order_by('name')
 
     context = {
         'categories': categories,
@@ -918,7 +916,7 @@ def category_create(request):
 
 @login_required
 def category_edit(request, category_id):
-    """Éditer une catégorie existante"""
+    """Modifier une catégorie"""
     category = get_object_or_404(TemplateCategory, id=category_id)
 
     if request.method == 'POST':
@@ -940,26 +938,17 @@ def category_edit(request, category_id):
 
 @login_required
 def category_delete(request, category_id):
-    """Supprimer une catégorie avec confirmation"""
+    """Supprimer une catégorie"""
     category = get_object_or_404(TemplateCategory, id=category_id)
 
-    # Vérifier s'il y a des templates dans cette catégorie
-    template_count = category.templates.count()
-
     if request.method == 'POST':
-        if template_count > 0:
-            messages.error(request,
-                           f'Impossible de supprimer la catégorie "{category.name}" : '
-                           f'elle contient {template_count} template(s).')
-        else:
-            category_name = category.name
-            category.delete()
-            messages.success(request, f'Catégorie "{category_name}" supprimée avec succès.')
+        category_name = category.name
+        category.delete()
+        messages.success(request, f'Catégorie "{category_name}" supprimée avec succès!')
         return redirect('templates_app:category_list')
 
     context = {
         'category': category,
-        'template_count': template_count,
     }
     return render(request, 'templates_app/category_confirm_delete.html', context)
 
@@ -1001,7 +990,7 @@ def template_field_add(request, template_id):
 
 @login_required
 def template_field_edit(request, template_id, field_id):
-    """Éditer un champ de template"""
+    """Modifier un champ de template"""
     template = get_object_or_404(Template, id=template_id, created_by=request.user)
     field = get_object_or_404(TemplateField, id=field_id, template=template)
 
@@ -1009,7 +998,7 @@ def template_field_edit(request, template_id, field_id):
         form = TemplateFieldForm(request.POST, instance=field)
         if form.is_valid():
             form.save()
-            messages.success(request, f'Champ "{field.field_name}" modifié avec succès!')
+            messages.success(request, f'Champ "{field.field_label}" modifié avec succès!')
             return redirect('templates_app:template_detail', template_id=template.id)
     else:
         form = TemplateFieldForm(instance=field)
@@ -1048,7 +1037,7 @@ def template_field_delete(request, template_id, field_id):
 
 @login_required
 def template_preview(request, template_id):
-    """Prévisualiser un template avec des données d'exemple"""
+    """Prévisualiser un template avec des données d'exemple (AJAX)"""
     template = get_object_or_404(Template, id=template_id)
 
     # Vérifier les permissions
@@ -1061,13 +1050,81 @@ def template_preview(request, template_id):
 
     for field in fields:
         placeholder = f'{{{{{field.field_name}}}}}'
-        example_value = field.default_value or f'[Exemple {field.field_name}]'
+        # CORRECTION : Utiliser getattr pour éviter l'erreur AttributeError
+        if hasattr(field, 'default_value') and field.default_value:
+            example_value = field.default_value
+        else:
+            # Générer des exemples basés sur le type de champ
+            examples = {
+                'text': f'[Exemple {field.field_name}]',
+                'textarea': f'Texte d\'exemple pour {field.field_label}',
+                'number': '123',
+                'date': '2025-06-23',
+                'email': 'exemple@email.com',
+                'url': 'https://exemple.com',
+                'select': 'Option 1' if field.get_options_list() else 'Sélection'
+            }
+            example_value = examples.get(field.field_type, f'[Exemple {field.field_name}]')
+
         content = content.replace(placeholder, example_value)
 
     return JsonResponse({
         'content': content,
         'title': template.title
     })
+
+
+# 2. AJOUTER une nouvelle vue pour la page complète de preview
+@login_required
+def template_preview_page(request, template_id):
+    """Vue complète pour la page de prévisualisation d'un template"""
+    template = get_object_or_404(Template, id=template_id)
+
+    # Vérifier les permissions
+    if not template.is_public and template.created_by != request.user:
+        messages.error(request, "Vous n'avez pas accès à ce template.")
+        return redirect('templates_app:template_list')
+
+    # Récupérer les champs
+    fields = template.fields.all().order_by('order', 'field_name')
+
+    # Générer le contenu avec des exemples
+    rendered_content = template.content or ""
+    preview_data = {}
+
+    for field in fields:
+        placeholder = f'{{{{{field.field_name}}}}}'
+
+        # Générer une valeur d'exemple
+        if hasattr(field, 'default_value') and field.default_value:
+            example_value = field.default_value
+        else:
+            example_value = generate_sample_data(field.field_name)
+            if not example_value:  # Si pas de données spécifiques
+                examples = {
+                    'text': f'Exemple de {field.field_label.lower()}',
+                    'textarea': f'Texte d\'exemple pour {field.field_label}',
+                    'number': '123',
+                    'date': '2025-06-23',
+                    'email': 'exemple@email.com',
+                    'url': 'https://exemple.com',
+                    'select': field.get_options_list()[0] if field.get_options_list() else 'Option 1'
+                }
+                example_value = examples.get(field.field_type, f'[Exemple {field.field_name}]')
+
+        # Remplacer dans le contenu
+        rendered_content = rendered_content.replace(placeholder, str(example_value))
+
+        # Ajouter aux données de preview
+        preview_data[field.field_name] = example_value
+
+    context = {
+        'template': template,
+        'fields': fields,
+        'rendered_content': rendered_content,
+        'preview_data': preview_data,
+    }
+    return render(request, 'templates_app/template_preview.html', context)
 
 
 @login_required
@@ -1215,38 +1272,123 @@ def search_global(request):
 
 
 @login_required
-def dashboard(request):
-    """Tableau de bord utilisateur avec statistiques"""
+def dashboard_view(request):
+    """Tableau de bord utilisateur avec statistiques détaillées - CORRIGÉ"""
     user = request.user
 
-    # Statistiques utilisateur
+    # Récupérer les objets de l'utilisateur
     user_templates = Template.objects.filter(created_by=user)
     user_documents = Document.objects.filter(created_by=user)
 
-    # Statistiques générales
+    # Statistiques générales - CORRECTION: utiliser is_completed
     stats = {
         'total_templates': user_templates.count(),
         'public_templates': user_templates.filter(is_public=True).count(),
+        'private_templates': user_templates.filter(is_public=False).count(),
         'total_documents': user_documents.count(),
-        'completed_documents': user_documents.filter(status='completed').count(),
-        'draft_documents': user_documents.filter(status='draft').count(),
+        'completed_documents': user_documents.filter(is_completed=True).count(),  # CORRIGÉ
+        'draft_documents': user_documents.filter(is_completed=False).count(),  # CORRIGÉ
     }
 
-    # Activité récente
-    recent_documents = user_documents.order_by('-updated_at')[:5]
-    recent_templates = user_templates.order_by('-created_at')[:5]
+    # Activité récente (7 derniers jours)
+    week_ago = timezone.now() - timedelta(days=7)
+    stats['recent_templates'] = user_templates.filter(created_at__gte=week_ago).count()
+    stats['recent_documents'] = user_documents.filter(created_at__gte=week_ago).count()
 
-    # Documents par template
+    # Activité récente détaillée
+    recent_templates = user_templates.order_by('-created_at')[:5]
+    recent_documents = user_documents.order_by('-updated_at')[:5]
+
+    # Templates les plus utilisés
     template_usage = user_templates.annotate(
         doc_count=Count('documents')
-    ).filter(doc_count__gt=0).order_by('-doc_count')[:5]
+    ).order_by('-doc_count')[:5]
+
+    # Statistiques par catégorie
+    categories_stats = []
+    if TemplateCategory.objects.exists():
+        for category in TemplateCategory.objects.all():
+            category_templates = user_templates.filter(category=category)
+            if category_templates.exists():
+                categories_stats.append({
+                    'category': category,
+                    'count': category_templates.count(),
+                    'color': category.color,
+                })
+
+    # Templates sans catégorie
+    uncategorized_count = user_templates.filter(category__isnull=True).count()
+    if uncategorized_count > 0:
+        categories_stats.append({
+            'category': {'name': 'Sans catégorie', 'color': '#6c757d'},
+            'count': uncategorized_count,
+            'color': '#6c757d',
+        })
+
+    # Progression mensuelle (derniers 6 mois)
+    monthly_stats = []
+    for i in range(6):
+        month_start = timezone.now().replace(day=1) - timedelta(days=30 * i)
+        month_end = month_start + timedelta(days=31)
+
+        templates_count = user_templates.filter(
+            created_at__gte=month_start,
+            created_at__lt=month_end
+        ).count()
+
+        documents_count = user_documents.filter(
+            created_at__gte=month_start,
+            created_at__lt=month_end
+        ).count()
+
+        monthly_stats.insert(0, {
+            'month': month_start.strftime('%B'),
+            'templates': templates_count,
+            'documents': documents_count,
+        })
+
+    # Suggestions d'amélioration
+    suggestions = []
+    if stats['total_templates'] == 0:
+        suggestions.append({
+            'type': 'info',
+            'title': 'Créez votre premier template',
+            'message': 'Commencez par créer un template pour vos documents récurrents.',
+            'action_url': reverse('templates_app:template_create'),
+            'action_text': 'Créer un template',
+            'icon': 'fas fa-plus'
+        })
+    elif stats['public_templates'] == 0 and stats['total_templates'] > 0:
+        suggestions.append({
+            'type': 'success',
+            'title': 'Partagez vos templates',
+            'message': 'Rendez vos templates publics pour que d\'autres utilisateurs puissent en bénéficier.',
+            'action_url': reverse('templates_app:template_list'),
+            'action_text': 'Voir mes templates',
+            'icon': 'fas fa-share'
+        })
+
+    if stats['draft_documents'] > stats['completed_documents'] and stats['draft_documents'] > 0:
+        suggestions.append({
+            'type': 'warning',
+            'title': 'Finalisez vos brouillons',
+            'message': f'Vous avez {stats["draft_documents"]} documents en brouillon qui attendent d\'être finalisés.',
+            'action_url': reverse('templates_app:document_list') + '?status=draft',
+            'action_text': 'Voir les brouillons',
+            'icon': 'fas fa-clock'
+        })
 
     context = {
         'stats': stats,
-        'recent_documents': recent_documents,
         'recent_templates': recent_templates,
+        'recent_documents': recent_documents,
         'template_usage': template_usage,
+        'categories_stats': categories_stats,
+        'monthly_stats': monthly_stats,
+        'suggestions': suggestions,
+        'user': user,
     }
+
     return render(request, 'templates_app/dashboard.html', context)
 
 
@@ -1410,3 +1552,157 @@ def template_delete_field(request, template_id, field_id):
         'field': field,
     }
     return render(request, 'templates_app/template_field_confirm_delete.html', context)
+
+
+@login_required
+def dashboard_view(request):
+    """Tableau de bord utilisateur avec statistiques détaillées"""
+    user = request.user
+
+    # Récupérer les objets de l'utilisateur
+    user_templates = Template.objects.filter(created_by=user)
+    user_documents = Document.objects.filter(created_by=user)
+
+    # Statistiques générales
+    stats = {
+        'total_templates': user_templates.count(),
+        'public_templates': user_templates.filter(is_public=True).count(),
+        'private_templates': user_templates.filter(is_public=False).count(),
+        'total_documents': user_documents.count(),
+        'completed_documents': user_documents.filter(is_completed=True).count(),
+        'draft_documents': user_documents.filter(is_completed=False).count(),
+    }
+
+    # Activité récente (7 derniers jours)
+    week_ago = timezone.now() - timedelta(days=7)
+    stats['recent_templates'] = user_templates.filter(created_at__gte=week_ago).count()
+    stats['recent_documents'] = user_documents.filter(created_at__gte=week_ago).count()
+
+    # Activité récente détaillée
+    recent_templates = user_templates.order_by('-created_at')[:5]
+    recent_documents = user_documents.order_by('-updated_at')[:5]
+
+    # Templates les plus utilisés
+    template_usage = user_templates.annotate(
+        doc_count=Count('documents')
+    ).order_by('-doc_count')[:5]
+
+    # Statistiques par catégorie
+    categories_stats = []
+    if TemplateCategory.objects.exists():
+        for category in TemplateCategory.objects.all():
+            category_templates = user_templates.filter(category=category)
+            if category_templates.exists():
+                categories_stats.append({
+                    'category': category,
+                    'count': category_templates.count(),
+                    'color': category.color,
+                })
+
+    # Templates sans catégorie
+    uncategorized_count = user_templates.filter(category__isnull=True).count()
+    if uncategorized_count > 0:
+        categories_stats.append({
+            'category': {'name': 'Sans catégorie', 'color': '#6c757d'},
+            'count': uncategorized_count,
+            'color': '#6c757d',
+        })
+
+    # Progression mensuelle (derniers 6 mois)
+    monthly_stats = []
+    for i in range(6):
+        month_start = timezone.now().replace(day=1) - timedelta(days=30 * i)
+        month_end = month_start + timedelta(days=31)
+
+        templates_count = user_templates.filter(
+            created_at__gte=month_start,
+            created_at__lt=month_end
+        ).count()
+
+        documents_count = user_documents.filter(
+            created_at__gte=month_start,
+            created_at__lt=month_end
+        ).count()
+
+        monthly_stats.insert(0, {
+            'month': month_start.strftime('%B'),
+            'templates': templates_count,
+            'documents': documents_count,
+        })
+
+    # Suggestions d'amélioration
+    suggestions = []
+    if stats['total_templates'] == 0:
+        suggestions.append({
+            'type': 'info',
+            'title': 'Créez votre premier template',
+            'message': 'Commencez par créer un template pour vos documents récurrents.',
+            'action_url': reverse('templates_app:template_create'),
+            'action_text': 'Créer un template',
+            'icon': 'fas fa-plus'
+        })
+    elif stats['public_templates'] == 0 and stats['total_templates'] > 0:
+        suggestions.append({
+            'type': 'success',
+            'title': 'Partagez vos templates',
+            'message': 'Rendez vos templates publics pour que d\'autres utilisateurs puissent en bénéficier.',
+            'action_url': reverse('templates_app:template_list'),
+            'action_text': 'Voir mes templates',
+            'icon': 'fas fa-share'
+        })
+
+    if stats['draft_documents'] > stats['completed_documents'] and stats['draft_documents'] > 0:
+        suggestions.append({
+            'type': 'warning',
+            'title': 'Finalisez vos brouillons',
+            'message': f'Vous avez {stats["draft_documents"]} documents en brouillon qui attendent d\'être finalisés.',
+            'action_url': reverse('templates_app:document_list') + '?status=draft',
+            'action_text': 'Voir les brouillons',
+            'icon': 'fas fa-clock'
+        })
+
+    context = {
+        'stats': stats,
+        'recent_templates': recent_templates,
+        'recent_documents': recent_documents,
+        'template_usage': template_usage,
+        'categories_stats': categories_stats,
+        'monthly_stats': monthly_stats,
+        'suggestions': suggestions,
+        'user': user,
+    }
+
+    return render(request, 'templates_app/dashboard.html', context)
+
+
+def complete_tutorial(request):
+    """Marquer le tutoriel comme terminé (AJAX)"""
+    if request.method == 'POST':
+        try:
+            # Marquer le tutoriel comme terminé dans la session
+            request.session['tutorial_completed'] = True
+            request.session.modified = True
+
+            # Si l'utilisateur est connecté, on peut aussi le marquer dans le profil
+            if request.user.is_authenticated:
+                # Optionnel : enregistrer dans le profil utilisateur
+                # request.user.profile.tutorial_completed = True
+                # request.user.profile.save()
+                pass
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Tutoriel marqué comme terminé !'
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Erreur : {str(e)}'
+            })
+
+    # Si ce n'est pas une requête POST
+    return JsonResponse({
+        'success': False,
+        'message': 'Méthode non autorisée'
+    }, status=405)

@@ -1,5 +1,7 @@
+# templates_app/urls.py - Ajouter la nouvelle URL
+
 from django.urls import path
-from . import views  # Plus besoin d'importer auth_views
+from . import views
 
 app_name = 'templates_app'
 
@@ -7,11 +9,11 @@ urlpatterns = [
     # ===============================
     # AUTHENTIFICATION
     # ===============================
-    path('login/', views.login_view, name='login'),        # Vue login personnalisée
-    path('signup/', views.signup_view, name='signup'),     # Vue signup personnalisée
+    path('login/', views.login_view, name='login'),
+    path('signup/', views.signup_view, name='signup'),
 
     # ===============================
-    # TEMPLATES (avec vue par défaut)
+    # TEMPLATES
     # ===============================
     path('templates/', views.template_list, name='template_list'),
     path('templates/create/', views.template_create, name='template_create'),
@@ -19,13 +21,19 @@ urlpatterns = [
     path('templates/<int:template_id>/edit/', views.template_edit, name='template_edit'),
     path('templates/<int:template_id>/delete/', views.template_delete, name='template_delete'),
     path('templates/<int:template_id>/duplicate/', views.template_duplicate, name='template_duplicate'),
-    path('templates/<int:template_id>/preview/', views.template_preview, name='template_preview'),
+
+    # CORRECTION : Séparer la vue AJAX et la page complète
+    path('templates/<int:template_id>/preview/', views.template_preview_page, name='template_preview_page'),
+    # PAGE COMPLÈTE
+    path('templates/<int:template_id>/preview/ajax/', views.template_preview, name='template_preview'),  # AJAX JSON
+
     path('templates/<int:template_id>/export/', views.template_export, name='template_export'),
 
     # Gestion des champs
     path('templates/<int:template_id>/fields/', views.template_edit_fields, name='template_edit_fields'),
     path('templates/<int:template_id>/fields/add/', views.template_add_field, name='template_add_field'),
-    path('templates/<int:template_id>/fields/<int:field_id>/delete/', views.template_delete_field, name='template_delete_field'),
+    path('templates/<int:template_id>/fields/<int:field_id>/delete/', views.template_delete_field,
+         name='template_delete_field'),
 
     # ===============================
     # DOCUMENTS
@@ -35,13 +43,16 @@ urlpatterns = [
     path('documents/<int:document_id>/', views.document_detail, name='document_detail'),
     path('documents/<int:document_id>/edit/', views.document_edit, name='document_edit'),
     path('documents/<int:document_id>/delete/', views.document_delete, name='document_delete'),
-    path('documents/<int:document_id>/duplicate/', views.document_duplicate, name='document_duplicate'),
-
-    # Export de documents
     path('documents/<int:document_id>/export/pdf/', views.document_export_pdf, name='document_export_pdf'),
-    path('documents/<int:document_id>/export/html/', views.document_export_html, name='document_export_html'),
     path('documents/<int:document_id>/export/docx/', views.document_export_docx, name='document_export_docx'),
+    path('documents/<int:document_id>/preview/', views.document_preview, name='document_preview'),
 
+    # ===============================
+    # AUTRES
+    # ===============================
+    path('', views.home_view, name='home'),
+    path('dashboard/', views.dashboard_view, name='dashboard'),
+    path('complete-tutorial/', views.complete_tutorial, name='complete_tutorial'),
 
     # ===============================
     # CATÉGORIES (placeholders)

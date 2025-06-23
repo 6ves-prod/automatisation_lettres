@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Catégories{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Catégories</h1>
+        <a href="{% url 'templates_app:category_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Nouvelle catégorie
+        </a>
+    </div>
+
+    <div class="row">
+        {% for category in categories %}
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="me-2" style="width: 20px; height: 20px; background-color: {{ category.color }}; border-radius: 50%;"></div>
+                        <h5 class="mb-0">{{ category.name }}</h5>
+                    </div>
+                    <p class="text-muted">{{ category.description|default:"Aucune description" }}</p>
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'templates_app:category_edit' category.id %}" class="btn btn-sm btn-outline-primary">
+                            Modifier
+                        </a>
+                        <a href="{% url 'templates_app:category_delete' category.id %}" class="btn btn-sm btn-outline-danger">
+                            Supprimer
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <h3>Aucune catégorie</h3>
+                <p class="text-muted">Créez votre première catégorie pour organiser vos templates.</p>
+                <a href="{% url 'templates_app:category_create' %}" class="btn btn-primary">
+                    Créer une catégorie
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

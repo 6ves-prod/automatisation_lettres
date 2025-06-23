@@ -303,6 +303,13 @@
                                     </a>
                                 </li>
                             </ul>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                                   href="{% url 'templates_app:dashboard' %}">
+                                    <i class="fas fa-tachometer-alt me-1"></i>
+                                    Dashboard
+                                </a>
+                            </li>
                         </li>
                     {% else %}
                         <li class="nav-item me-2">
@@ -318,6 +325,41 @@
                             </a>
                         </li>
                     {% endif %}
+                </ul>
+
+                <!-- Dans le menu dropdown utilisateur, modifier le lien tutoriel -->
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">
+                        <i class="fas fa-user me-1"></i>
+                        {{ user.get_full_name|default:user.username }}
+                    </h6></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'templates_app:dashboard' %}">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="showTutorialFromMenu(); return false;">
+                            <i class="fas fa-graduation-cap me-2"></i>Revoir le tutoriel
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="#">
+                            <i class="fas fa-cog me-2"></i>Paramètres
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="#">
+                            <i class="fas fa-question-circle me-2"></i>Aide
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item text-danger" href="{% url 'logout' %}">
+                            <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -494,6 +536,78 @@
             }
         `;
         document.head.appendChild(style);
+
+
+        // Fonction globale pour afficher le tutoriel depuis n'importe quelle page
+        function showTutorialFromMenu() {
+            // Si nous sommes sur la page d'accueil et que la fonction existe
+            if (typeof showTutorial === 'function') {
+                showTutorial();
+            } else {
+                // Sinon, rediriger vers la page d'accueil avec le paramètre tutorial
+                window.location.href = "{% url 'templates_app:home' %}?tutorial=true";
+            }
+        }
+
+        // Fonction pour marquer le tutoriel comme terminé
+        function completeTutorial() {
+            fetch("{% url 'templates_app:complete_tutorial' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Tutoriel marqué comme terminé');
+                } else {
+                    console.error('Erreur:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+            });
+        }
+
+        // Fonction utilitaire pour récupérer le token CSRF
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Dans le tutoriel modal, modifier le bouton "Commencer maintenant"
+        // pour appeler completeTutorial() quand l'utilisateur clique dessus
+        document.addEventListener('DOMContentLoaded', function() {
+            // Écouter la fermeture du modal tutoriel
+            const tutorialModal = document.getElementById('tutorialModal');
+            if (tutorialModal) {
+                tutorialModal.addEventListener('hidden.bs.modal', function () {
+                    // Marquer comme terminé quand l'utilisateur ferme le modal
+                    completeTutorial();
+                });
+
+                // Aussi marquer comme terminé quand il clique sur "Commencer maintenant"
+                const startBtn = document.getElementById('startBtn');
+                if (startBtn) {
+                    startBtn.addEventListener('click', function() {
+                        completeTutorial();
+                    });
+                }
+            }
+        });
     </script>
 
     {% block extra_js %}{% endblock %}

@@ -22,3 +22,4 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ['title', 'template', 'created_by', 'is_completed', 'created_at']
     list_filter = ['template', 'is_completed', 'created_at']
     search_fields = ['title']
+

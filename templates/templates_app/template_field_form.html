@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ action }} un champ - {{ template.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'templates_app:template_list' %}">Templates</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'templates_app:template_detail' template.id %}">{{ template.title }}</a>
+            </li>
+            <li class="breadcrumb-item active">{{ action }} un champ</li>
+        </ol>
+    </nav>
+
+    <h1>{{ action }} un champ</h1>
+    <p class="text-muted">Template : {{ template.title }}</p>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'templates_app:template_detail' template.id %}" class="btn btn-secondary">
+                                Annuler
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                {{ action }} le champ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
