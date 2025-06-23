@@ -502,26 +502,32 @@ def document_delete(request, document_id):
 @login_required
 def document_duplicate(request, document_id):
     """Dupliquer un document existant"""
-    original_document = get_object_or_404(Document, id=document_id, created_by=request.user)
+    try:
+        # Récupérer le document original
+        original_document = get_object_or_404(Document, id=document_id, created_by=request.user)
 
-    # Créer une copie du document
-    new_document = Document.objects.create(
-        title=f"Copie de {original_document.title}",
-        template=original_document.template,
-        created_by=request.user,
-        is_completed=False  # CORRECTION: utiliser is_completed au lieu de status
-    )
-
-    # Copier les valeurs des champs
-    for field_value in original_document.field_values.all():
-        DocumentFieldValue.objects.create(
-            document=new_document,
-            template_field=field_value.template_field,
-            value=field_value.value
+        # Créer une copie du document
+        new_document = Document.objects.create(
+            title=f"Copie de {original_document.title}",
+            template=original_document.template,
+            created_by=request.user,
+            is_completed=False  # Nouveau document en brouillon
         )
 
-    messages.success(request, f'Document dupliqué avec succès : "{new_document.title}"')
-    return redirect('templates_app:document_detail', document_id=new_document.id)
+        # Copier toutes les valeurs des champs
+        for field_value in original_document.field_values.all():
+            DocumentFieldValue.objects.create(
+                document=new_document,
+                template_field=field_value.template_field,
+                value=field_value.value
+            )
+
+        messages.success(request, f'Document dupliqué avec succès : "{new_document.title}"')
+        return redirect('templates_app:document_detail', document_id=new_document.id)
+
+    except Exception as e:
+        messages.error(request, f'Erreur lors de la duplication : {str(e)}')
+        return redirect('templates_app:document_detail', document_id=document_id)
 
 
 # ===============================
